@@ -3,6 +3,10 @@
 .env.production
 config.env
 
+# Archivos temporales de desarrollo
+test_responses/
+*.tmp
+
 # Datos locales y cache
 data/
 logs/
