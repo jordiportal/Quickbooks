@@ -269,3 +269,204 @@ class QuickBooksClient:
         }
         
         return summary
+
+    def get_annual_sales_summary(self, year: int = None) -> Dict:
+        """
+        Obtiene un resumen completo de las ventas de todo el año
+        
+        Args:
+            year (int, optional): Año (por defecto: año actual)
+            
+        Returns:
+            dict: Resumen anual con desglose por meses
+        """
+        if not year:
+            year = datetime.now().year
+        
+        print(f"📊 Obteniendo datos anuales para {year}...")
+        
+        annual_data = {
+            'año': year,
+            'total_anual': 0.0,
+            'meses': {},
+            'resumen': {
+                'total_recibos': 0,
+                'total_facturas': 0,
+                'cantidad_recibos': 0,
+                'cantidad_facturas': 0,
+                'mejor_mes': {'mes': '', 'ventas': 0, 'periodo': ''},
+                'peor_mes': {'mes': '', 'ventas': float('inf'), 'periodo': ''},
+                'promedio_mensual': 0,
+                'meses_con_ventas': 0
+            }
+        }
+        
+        current_date = datetime.now()
+        
+        # Obtener datos para cada mes del año
+        for month in range(1, 13):
+            # No procesar meses futuros del año actual
+            if year == current_date.year and month > current_date.month:
+                break
+                
+            try:
+                print(f"  📅 Procesando {month:02d}/{year}...")
+                monthly_data = self.get_monthly_sales_summary(year, month)
+                
+                month_name = self._get_month_name(month)
+                annual_data['meses'][f"{month:02d}"] = {
+                    'nombre': month_name,
+                    'numero': month,
+                    'data': monthly_data
+                }
+                
+                # Acumular totales anuales
+                month_total = monthly_data['total_ventas']
+                annual_data['total_anual'] += month_total
+                annual_data['resumen']['total_recibos'] += monthly_data['recibos_de_venta']['total']
+                annual_data['resumen']['total_facturas'] += monthly_data['facturas']['total']
+                annual_data['resumen']['cantidad_recibos'] += monthly_data['recibos_de_venta']['cantidad']
+                annual_data['resumen']['cantidad_facturas'] += monthly_data['facturas']['cantidad']
+                
+                if month_total > 0:
+                    annual_data['resumen']['meses_con_ventas'] += 1
+                
+                # Encontrar mejor y peor mes
+                if month_total > annual_data['resumen']['mejor_mes']['ventas']:
+                    annual_data['resumen']['mejor_mes'] = {
+                        'mes': month_name,
+                        'ventas': month_total,
+                        'periodo': f"{month:02d}/{year}"
+                    }
+                
+                if month_total < annual_data['resumen']['peor_mes']['ventas'] and month_total > 0:
+                    annual_data['resumen']['peor_mes'] = {
+                        'mes': month_name,
+                        'ventas': month_total,
+                        'periodo': f"{month:02d}/{year}"
+                    }
+                    
+            except Exception as e:
+                print(f"  ❌ Error en mes {month}: {e}")
+                # Continuar con otros meses aunque uno falle
+                continue
+        
+        # Ajustar peor mes si todos tienen ventas 0
+        if annual_data['resumen']['peor_mes']['ventas'] == float('inf'):
+            annual_data['resumen']['peor_mes'] = {'mes': 'N/A', 'ventas': 0, 'periodo': 'N/A'}
+        
+        # Calcular promedio mensual
+        meses_con_datos = annual_data['resumen']['meses_con_ventas']
+        annual_data['resumen']['promedio_mensual'] = (
+            annual_data['total_anual'] / meses_con_datos if meses_con_datos > 0 else 0
+        )
+        
+        print(f"✅ Datos anuales obtenidos: ${annual_data['total_anual']:.2f}")
+        return annual_data
+
+    def get_quarterly_sales_summary(self, year: int = None) -> Dict:
+        """
+        Obtiene un resumen de ventas por trimestres
+        
+        Args:
+            year (int, optional): Año (por defecto: año actual)
+            
+        Returns:
+            dict: Resumen por trimestres
+        """
+        if not year:
+            year = datetime.now().year
+        
+        quarterly_data = {
+            'año': year,
+            'trimestres': {},
+            'total_anual': 0.0
+        }
+        
+        quarters = {
+            'Q1': {'meses': [1, 2, 3], 'nombre': 'Primer Trimestre (Ene-Mar)'},
+            'Q2': {'meses': [4, 5, 6], 'nombre': 'Segundo Trimestre (Abr-Jun)'},
+            'Q3': {'meses': [7, 8, 9], 'nombre': 'Tercer Trimestre (Jul-Sep)'},
+            'Q4': {'meses': [10, 11, 12], 'nombre': 'Cuarto Trimestre (Oct-Dic)'}
+        }
+        
+        for quarter_key, quarter_info in quarters.items():
+            quarter_total = 0.0
+            quarter_months = {}
+            quarter_receipts = 0
+            quarter_invoices = 0
+            
+            for month in quarter_info['meses']:
+                try:
+                    monthly_data = self.get_monthly_sales_summary(year, month)
+                    quarter_months[f"{month:02d}"] = monthly_data
+                    quarter_total += monthly_data['total_ventas']
+                    quarter_receipts += monthly_data['recibos_de_venta']['total']
+                    quarter_invoices += monthly_data['facturas']['total']
+                except Exception as e:
+                    print(f"Error en mes {month}: {e}")
+                    continue
+            
+            quarterly_data['trimestres'][quarter_key] = {
+                'nombre': quarter_info['nombre'],
+                'total': quarter_total,
+                'total_recibos': quarter_receipts,
+                'total_facturas': quarter_invoices,
+                'meses': quarter_months
+            }
+            quarterly_data['total_anual'] += quarter_total
+        
+        return quarterly_data
+
+    def get_period_comparison(self, year1: int, year2: int = None) -> Dict:
+        """
+        Compara ventas entre dos años o año actual vs anterior
+        
+        Args:
+            year1: Primer año a comparar
+            year2: Segundo año (opcional, usa año anterior si no se especifica)
+            
+        Returns:
+            dict: Comparación entre períodos
+        """
+        if not year2:
+            year2 = year1 - 1
+        
+        try:
+            data_year1 = self.get_annual_sales_summary(year1)
+            data_year2 = self.get_annual_sales_summary(year2)
+            
+            difference = data_year1['total_anual'] - data_year2['total_anual']
+            percentage_change = (
+                (difference / data_year2['total_anual'] * 100) 
+                if data_year2['total_anual'] > 0 else 0
+            )
+            
+            comparison = {
+                'año_actual': year1,
+                'año_anterior': year2,
+                'ventas_actual': data_year1['total_anual'],
+                'ventas_anterior': data_year2['total_anual'],
+                'diferencia': difference,
+                'porcentaje_cambio': percentage_change,
+                'tendencia': 'crecimiento' if difference > 0 else 'decrecimiento' if difference < 0 else 'estable',
+                'datos_detallados': {
+                    year1: data_year1,
+                    year2: data_year2
+                }
+            }
+            
+            return comparison
+            
+        except Exception as e:
+            print(f"Error comparando períodos: {e}")
+            raise
+
+    def _get_month_name(self, month_number: int) -> str:
+        """Convierte número de mes a nombre en español"""
+        months = {
+            1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+            5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+            9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+        }
+        return months.get(month_number, f'Mes {month_number}')

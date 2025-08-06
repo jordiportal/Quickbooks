@@ -127,6 +127,171 @@ class SalesCacheService:
         
         return {}
     
+    def update_annual_cache(self, company_id: str, year: int, qb_client=None) -> bool:
+        """
+        Actualizar cache con datos anuales completos
+        
+        Args:
+            company_id: ID de la empresa en QuickBooks
+            year: Año para obtener datos
+            qb_client: Cliente QuickBooks configurado
+        
+        Returns:
+            bool: True si la actualización fue exitosa
+        """
+        session = self.Session()
+        try:
+            if not qb_client:
+                logger.error("Cliente QuickBooks no proporcionado")
+                return False
+            
+            # Obtener datos anuales
+            annual_data = qb_client.get_annual_sales_summary(year)
+            
+            # Actualizar cache para cada mes del año
+            success_count = 0
+            for month_key, month_info in annual_data['meses'].items():
+                monthly_data = month_info['data']
+                success = self.update_sales_cache(company_id, monthly_data)
+                if success:
+                    success_count += 1
+            
+            # Guardar resumen anual en archivo JSON especial
+            annual_file_path = os.path.join(self.data_dir, f"annual_summary_{company_id}_{year}.json")
+            annual_summary = {
+                **annual_data,
+                'cached_at': datetime.now().isoformat(),
+                'cache_version': '1.0',
+                'months_cached': success_count
+            }
+            
+            with open(annual_file_path, 'w', encoding='utf-8') as f:
+                json.dump(annual_summary, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"✅ Cache anual actualizado: {year} - {success_count} meses - Total: ${annual_data['total_anual']:.2f}")
+            return success_count > 0
+            
+        except Exception as e:
+            session.rollback()
+            logger.error(f"❌ Error actualizando cache anual {year}: {e}")
+            return False
+        finally:
+            session.close()
+
+    def get_annual_cached_data(self, company_id: str, year: int = None) -> Optional[Dict]:
+        """
+        Obtener datos anuales desde cache
+        
+        Args:
+            company_id: ID de la empresa
+            year: Año (opcional, usa año actual si no se especifica)
+        
+        Returns:
+            Dict con datos anuales o None si no se encuentra
+        """
+        if not year:
+            year = datetime.now().year
+        
+        # Intentar cargar resumen anual desde archivo
+        annual_file_path = os.path.join(self.data_dir, f"annual_summary_{company_id}_{year}.json")
+        
+        if os.path.exists(annual_file_path):
+            try:
+                with open(annual_file_path, 'r', encoding='utf-8') as f:
+                    annual_data = json.load(f)
+                    logger.info(f"📊 Cache anual hit: {company_id} - {year}")
+                    return annual_data
+            except Exception as e:
+                logger.error(f"Error cargando cache anual: {e}")
+        
+        # Si no hay resumen anual, construir desde cache mensual
+        session = self.Session()
+        try:
+            annual_summary = {
+                'año': year,
+                'total_anual': 0.0,
+                'meses': {},
+                'resumen': {
+                    'total_recibos': 0,
+                    'total_facturas': 0,
+                    'cantidad_recibos': 0,
+                    'cantidad_facturas': 0,
+                    'meses_con_ventas': 0,
+                    'promedio_mensual': 0,
+                    'mejor_mes': {'mes': 'N/A', 'ventas': 0, 'periodo': 'N/A'},
+                    'peor_mes': {'mes': 'N/A', 'ventas': 0, 'periodo': 'N/A'}
+                },
+                'from_cache': True,
+                'cache_source': 'monthly_aggregation',
+                'current_year': year
+            }
+            
+            months_found = 0
+            for month in range(1, 13):
+                period = f"{month:02d}/{year}"
+                monthly_cache = self.get_cached_sales(company_id, period)
+                
+                if monthly_cache:
+                    month_name = self._get_month_name_es(month)
+                    annual_summary['meses'][f"{month:02d}"] = {
+                        'nombre': month_name,
+                        'numero': month,
+                        'data': monthly_cache
+                    }
+                    
+                    # Acumular totales
+                    month_total = monthly_cache.get('total_ventas', 0)
+                    annual_summary['total_anual'] += month_total
+                    annual_summary['resumen']['total_recibos'] += monthly_cache.get('recibos_de_venta', {}).get('total', 0)
+                    annual_summary['resumen']['total_facturas'] += monthly_cache.get('facturas', {}).get('total', 0)
+                    annual_summary['resumen']['cantidad_recibos'] += monthly_cache.get('recibos_de_venta', {}).get('cantidad', 0)
+                    annual_summary['resumen']['cantidad_facturas'] += monthly_cache.get('facturas', {}).get('cantidad', 0)
+                    
+                    if month_total > 0:
+                        annual_summary['resumen']['meses_con_ventas'] += 1
+                    
+                    # Actualizar mejor y peor mes
+                    if month_total > annual_summary['resumen']['mejor_mes']['ventas']:
+                        annual_summary['resumen']['mejor_mes'] = {
+                            'mes': month_name,
+                            'ventas': month_total,
+                            'periodo': period
+                        }
+                    
+                    if (month_total < annual_summary['resumen']['peor_mes']['ventas'] and month_total > 0) or annual_summary['resumen']['peor_mes']['ventas'] == 0:
+                        annual_summary['resumen']['peor_mes'] = {
+                            'mes': month_name,
+                            'ventas': month_total,
+                            'periodo': period
+                        }
+                    
+                    months_found += 1
+            
+            # Calcular promedio mensual
+            if annual_summary['resumen']['meses_con_ventas'] > 0:
+                annual_summary['resumen']['promedio_mensual'] = (
+                    annual_summary['total_anual'] / annual_summary['resumen']['meses_con_ventas']
+                )
+            
+            if months_found > 0:
+                logger.info(f"📊 Cache anual construido desde mensual: {company_id} - {year} ({months_found} meses)")
+                return annual_summary
+            else:
+                logger.info(f"📊 Cache anual miss: {company_id} - {year}")
+                return None
+                
+        finally:
+            session.close()
+
+    def _get_month_name_es(self, month_number: int) -> str:
+        """Convierte número de mes a nombre en español"""
+        months = {
+            1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+            5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+            9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+        }
+        return months.get(month_number, f'Mes {month_number}')
+
     def update_sales_cache(self, company_id: str, sales_data: Dict, access_token: str = None, refresh_token: str = None) -> bool:
         """
         Actualizar cache con nuevos datos de ventas

@@ -10,7 +10,6 @@ from typing import Dict, List
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
-from quickbooks_client import QuickBooksClient
 from sales_cache import cache_service, SalesCacheService
 
 # Configurar logging
@@ -59,6 +58,15 @@ class SalesUpdateScheduler:
             trigger=IntervalTrigger(hours=6),
             id='log_stats',
             name='Log estadísticas del cache',
+            replace_existing=True
+        )
+        
+        # Job anual: Actualizar cache anual diariamente a las 3 AM
+        self.scheduler.add_job(
+            func=self._update_annual_cache_job,
+            trigger=CronTrigger(hour=3, minute=0),
+            id='update_annual_cache',
+            name='Actualizar cache anual',
             replace_existing=True
         )
     
@@ -196,6 +204,55 @@ class SalesUpdateScheduler:
             logger.info(f"👥 Empresas activas: {len(self.active_companies)}")
         except Exception as e:
             logger.error(f"❌ Error obteniendo estadísticas: {e}")
+
+    def _update_annual_cache_job(self):
+        """Job anual: actualizar cache anual para todas las empresas"""
+        logger.info(f"📊 Iniciando actualización de cache anual: {datetime.now()}")
+        
+        if not self.active_companies:
+            logger.info("📭 No hay empresas registradas para actualización anual")
+            return
+        
+        current_year = datetime.now().year
+        successful_updates = 0
+        failed_updates = 0
+        
+        for company_id, company_data in self.active_companies.items():
+            try:
+                # Crear cliente QuickBooks temporal
+                from quickbooks_client import QuickBooksClient
+                qb_client = QuickBooksClient()
+                qb_client.access_token = company_data['access_token']
+                qb_client.refresh_token = company_data.get('refresh_token')
+                qb_client.company_id = company_id
+                
+                # Actualizar cache anual
+                success = self.cache_service.update_annual_cache(company_id, current_year, qb_client)
+                
+                if success:
+                    successful_updates += 1
+                    logger.info(f"✅ Cache anual actualizado: {company_id}")
+                    
+                    # Actualizar tokens si se renovaron
+                    if qb_client.access_token != company_data['access_token']:
+                        self.active_companies[company_id]['access_token'] = qb_client.access_token
+                        if qb_client.refresh_token:
+                            self.active_companies[company_id]['refresh_token'] = qb_client.refresh_token
+                        logger.info(f"🔄 Tokens renovados para: {company_id}")
+                else:
+                    failed_updates += 1
+                    logger.error(f"❌ Error actualizando cache anual: {company_id}")
+                    
+            except Exception as e:
+                failed_updates += 1
+                logger.error(f"❌ Error inesperado en cache anual {company_id}: {e}")
+                
+                # Si el error es de autenticación, desregistrar la empresa
+                if 'unauthorized' in str(e).lower() or '401' in str(e):
+                    logger.warning(f"🔐 Tokens inválidos en job anual, desregistrando: {company_id}")
+                    self.unregister_company(company_id)
+        
+        logger.info(f"📊 Actualización anual completada: ✅{successful_updates} exitosas, ❌{failed_updates} fallidas")
     
     def start(self):
         """Iniciar el scheduler"""
