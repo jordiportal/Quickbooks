@@ -36,9 +36,52 @@ class SalesCache(Base):
     last_updated = Column(DateTime, default=datetime.now)
     update_success = Column(String, default='true')  # 'true', 'false', 'error'
     error_message = Column(String, nullable=True)
+    # Nuevos campos para información detallada
+    total_units = Column(Integer, default=0)  # Total de unidades vendidas
+    unique_customers = Column(Integer, default=0)  # Número de clientes únicos
+    unique_products = Column(Integer, default=0)  # Número de productos únicos
     
     __table_args__ = (
         UniqueConstraint('company_id', 'period', name='_company_period_uc'),
+    )
+
+class ProductSales(Base):
+    """Modelo para ventas detalladas por producto"""
+    __tablename__ = 'product_sales'
+    
+    id = Column(Integer, primary_key=True)
+    company_id = Column(String, nullable=False)
+    period = Column(String, nullable=False)  # Formato: "MM/YYYY"
+    product_id = Column(String, nullable=False)  # ID del producto en QuickBooks
+    product_name = Column(String, nullable=False)  # Nombre del producto
+    units_sold = Column(Integer, default=0)  # Unidades vendidas
+    total_sales = Column(Float, default=0.0)  # Ventas totales del producto
+    average_price = Column(Float, default=0.0)  # Precio promedio por unidad
+    transactions_count = Column(Integer, default=0)  # Número de transacciones
+    unique_customers = Column(Integer, default=0)  # Clientes únicos que lo compraron
+    last_updated = Column(DateTime, default=datetime.now)
+    
+    __table_args__ = (
+        UniqueConstraint('company_id', 'period', 'product_id', name='_company_period_product_uc'),
+    )
+
+class CustomerSales(Base):
+    """Modelo para ventas detalladas por cliente"""
+    __tablename__ = 'customer_sales'
+    
+    id = Column(Integer, primary_key=True)
+    company_id = Column(String, nullable=False)
+    period = Column(String, nullable=False)  # Formato: "MM/YYYY"
+    customer_id = Column(String, nullable=False)  # ID del cliente en QuickBooks
+    customer_name = Column(String, nullable=False)  # Nombre del cliente
+    total_sales = Column(Float, default=0.0)  # Ventas totales al cliente
+    total_units = Column(Integer, default=0)  # Unidades totales compradas
+    transactions_count = Column(Integer, default=0)  # Número de transacciones
+    unique_products = Column(Integer, default=0)  # Productos únicos comprados
+    last_updated = Column(DateTime, default=datetime.now)
+    
+    __table_args__ = (
+        UniqueConstraint('company_id', 'period', 'customer_id', name='_company_period_customer_uc'),
     )
     
     def to_dict(self):
@@ -47,6 +90,9 @@ class SalesCache(Base):
             'company_id': self.company_id,
             'período': self.period,
             'total_ventas': float(self.total_sales),
+            'total_unidades': self.total_units or 0,
+            'clientes_únicos': self.unique_customers or 0,
+            'productos_únicos': self.unique_products or 0,
             'recibos_de_venta': {
                 'cantidad': self.receipts_count,
                 'total': float(self.receipts_total)
@@ -178,19 +224,32 @@ class SalesCacheService:
         finally:
             session.close()
 
-    def get_annual_cached_data(self, company_id: str, year: int = None) -> Optional[Dict]:
+    def get_annual_cached_data(self, year: int = None, company_id: str = None) -> Optional[Dict]:
         """
         Obtener datos anuales desde cache
         
         Args:
-            company_id: ID de la empresa
             year: Año (opcional, usa año actual si no se especifica)
+            company_id: ID de la empresa (opcional, usa el primero disponible si no se especifica)
         
         Returns:
             Dict con datos anuales o None si no se encuentra
         """
         if not year:
             year = datetime.now().year
+            
+        # Si no se especifica company_id, usar el primero disponible
+        if not company_id:
+            session = self.Session()
+            try:
+                first_record = session.query(SalesCache).first()
+                if first_record:
+                    company_id = first_record.company_id
+                else:
+                    logger.warning("No hay registros en cache para obtener company_id")
+                    return None
+            finally:
+                session.close()
         
         # Intentar cargar resumen anual desde archivo
         annual_file_path = os.path.join(self.data_dir, f"annual_summary_{company_id}_{year}.json")
@@ -274,6 +333,8 @@ class SalesCacheService:
                 )
             
             if months_found > 0:
+                # Agregar campo meses_con_datos para compatibilidad con endpoints
+                annual_summary['meses_con_datos'] = months_found
                 logger.info(f"📊 Cache anual construido desde mensual: {company_id} - {year} ({months_found} meses)")
                 return annual_summary
             else:
@@ -331,6 +392,10 @@ class SalesCacheService:
             cache_entry.invoices_total = float(sales_data.get('facturas', {}).get('total', 0))
             cache_entry.fecha_inicio = sales_data.get('fecha_inicio', '')
             cache_entry.fecha_fin = sales_data.get('fecha_fin', '')
+            # Nuevos campos detallados
+            cache_entry.total_units = sales_data.get('total_unidades', 0)
+            cache_entry.unique_customers = sales_data.get('clientes_únicos', 0)
+            cache_entry.unique_products = sales_data.get('productos_únicos', 0)
             cache_entry.last_updated = datetime.now()
             cache_entry.update_success = 'true'
             cache_entry.error_message = None
@@ -450,6 +515,177 @@ class SalesCacheService:
                 'cache_db_path': self.db_path,
                 'data_directory': self.data_dir
             }
+        finally:
+            session.close()
+    
+    def update_detailed_cache(self, company_id: str, period: str, monthly_data: Dict) -> bool:
+        """
+        Actualizar cache con datos detallados de productos y clientes
+        
+        Args:
+            company_id: ID de la empresa en QuickBooks
+            period: Período en formato MM/YYYY
+            monthly_data: Datos detallados del mes con productos y clientes
+        
+        Returns:
+            bool: True si la actualización fue exitosa
+        """
+        session = self.Session()
+        try:
+            # Actualizar resumen principal en sales_cache
+            cache_entry = session.query(SalesCache).filter_by(
+                company_id=company_id,
+                period=period
+            ).first()
+            
+            if not cache_entry:
+                cache_entry = SalesCache(
+                    company_id=company_id,
+                    period=period
+                )
+                session.add(cache_entry)
+            
+            # Actualizar campos del resumen principal
+            cache_entry.total_sales = monthly_data['totales']['ventas']
+            cache_entry.total_units = int(monthly_data['totales']['unidades'])
+            cache_entry.unique_customers = len(monthly_data['clientes'])
+            cache_entry.unique_products = len(monthly_data['productos'])
+            cache_entry.receipts_count = len([t for t in monthly_data['transacciones'] if t['tipo'] == 'receipt'])
+            cache_entry.invoices_count = len([t for t in monthly_data['transacciones'] if t['tipo'] == 'invoice'])
+            cache_entry.receipts_total = sum(t['total'] for t in monthly_data['transacciones'] if t['tipo'] == 'receipt')
+            cache_entry.invoices_total = sum(t['total'] for t in monthly_data['transacciones'] if t['tipo'] == 'invoice')
+            cache_entry.fecha_inicio = monthly_data['fecha_inicio']
+            cache_entry.fecha_fin = monthly_data['fecha_fin']
+            cache_entry.last_updated = datetime.now()
+            cache_entry.update_success = 'true'
+            cache_entry.error_message = None
+            
+            # Limpiar datos anteriores del período
+            session.query(ProductSales).filter_by(
+                company_id=company_id,
+                period=period
+            ).delete()
+            
+            session.query(CustomerSales).filter_by(
+                company_id=company_id,
+                period=period
+            ).delete()
+            
+            # Insertar datos de productos
+            for product_id, product_data in monthly_data['productos'].items():
+                product_entry = ProductSales(
+                    company_id=company_id,
+                    period=period,
+                    product_id=product_id,
+                    product_name=product_data['nombre'],
+                    units_sold=int(product_data['unidades_vendidas']),
+                    total_sales=float(product_data['ventas_totales']),
+                    average_price=float(product_data['precio_promedio']),
+                    transactions_count=product_data['transacciones'],
+                    unique_customers=len(product_data['clientes']),
+                    last_updated=datetime.now()
+                )
+                session.add(product_entry)
+            
+            # Insertar datos de clientes
+            for customer_id, customer_data in monthly_data['clientes'].items():
+                customer_entry = CustomerSales(
+                    company_id=company_id,
+                    period=period,
+                    customer_id=customer_id,
+                    customer_name=customer_data['nombre'],
+                    total_sales=float(customer_data['ventas_totales']),
+                    total_units=int(customer_data['unidades_totales']),
+                    transactions_count=customer_data['transacciones'],
+                    unique_products=len(customer_data['productos']),
+                    last_updated=datetime.now()
+                )
+                session.add(customer_entry)
+            
+            session.commit()
+            
+            logger.info(f"✅ Cache detallado actualizado: {company_id} - {period}")
+            logger.info(f"   📦 Productos: {len(monthly_data['productos'])}")
+            logger.info(f"   👥 Clientes: {len(monthly_data['clientes'])}")
+            logger.info(f"   💰 Ventas: ${monthly_data['totales']['ventas']:.2f}")
+            logger.info(f"   📊 Unidades: {monthly_data['totales']['unidades']}")
+            
+            return True
+            
+        except Exception as e:
+            session.rollback()
+            logger.error(f"❌ Error actualizando cache detallado: {e}")
+            return False
+            
+        finally:
+            session.close()
+    
+    def get_product_sales(self, company_id: str, period: str = None) -> List[Dict]:
+        """
+        Obtener ventas por producto del cache
+        
+        Args:
+            company_id: ID de la empresa
+            period: Período específico (opcional)
+        
+        Returns:
+            List[Dict]: Lista de ventas por producto
+        """
+        session = self.Session()
+        try:
+            query = session.query(ProductSales).filter_by(company_id=company_id)
+            
+            if period:
+                query = query.filter_by(period=period)
+            
+            products = query.order_by(ProductSales.total_sales.desc()).all()
+            
+            return [{
+                'product_id': p.product_id,
+                'product_name': p.product_name,
+                'period': p.period,
+                'units_sold': p.units_sold,
+                'total_sales': float(p.total_sales),
+                'average_price': float(p.average_price),
+                'transactions_count': p.transactions_count,
+                'unique_customers': p.unique_customers,
+                'last_updated': p.last_updated.isoformat() if p.last_updated else None
+            } for p in products]
+            
+        finally:
+            session.close()
+    
+    def get_customer_sales(self, company_id: str, period: str = None) -> List[Dict]:
+        """
+        Obtener ventas por cliente del cache
+        
+        Args:
+            company_id: ID de la empresa
+            period: Período específico (opcional)
+        
+        Returns:
+            List[Dict]: Lista de ventas por cliente
+        """
+        session = self.Session()
+        try:
+            query = session.query(CustomerSales).filter_by(company_id=company_id)
+            
+            if period:
+                query = query.filter_by(period=period)
+            
+            customers = query.order_by(CustomerSales.total_sales.desc()).all()
+            
+            return [{
+                'customer_id': c.customer_id,
+                'customer_name': c.customer_name,
+                'period': c.period,
+                'total_sales': float(c.total_sales),
+                'total_units': c.total_units,
+                'transactions_count': c.transactions_count,
+                'unique_products': c.unique_products,
+                'last_updated': c.last_updated.isoformat() if c.last_updated else None
+            } for c in customers]
+            
         finally:
             session.close()
 

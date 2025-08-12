@@ -1,0 +1,47 @@
+services:
+  # QuickBooks Sales Reporter para Producción
+  quickbooks-reporter:
+    image: registry.khlloreda.es/quickbooks-reporter:v2.0.1
+    container_name: quickbooks-reporter-prod
+    restart: unless-stopped
+    ports:
+      - "5000:5000"  # Flask - Aplicación principal
+      - "8080:8080"  # FastAPI - OpenWebUI Interface
+    environment:
+      - FLASK_ENV=production
+      - SALES_UPDATE_INTERVAL=1  # Horas entre actualizaciones automáticas
+    volumes:
+      - ./data:/app/data      # Persistir base de datos SQLite
+      - ./logs:/app/logs      # Persistir logs
+      - ./.env.production:/app/.env.production:ro  # Configuración de producción
+      - ./.env:/app/.env:ro   # Configuración de desarrollo como fallback
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/ || curl -f http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - quickbooks-network
+    labels:
+      - "com.khlloreda.service=quickbooks-reporter"
+      - "com.khlloreda.version=v2.0.1"
+      - "com.khlloreda.environment=production"
+
+# Red personalizada
+networks:
+  quickbooks-network:
+    driver: bridge
+    labels:
+      - "com.khlloreda.network=quickbooks"
+
+# Volúmenes nombrados para mayor persistencia
+volumes:
+  quickbooks-data:
+    driver: local
+    labels:
+      - "com.khlloreda.volume=quickbooks-data"
+  quickbooks-logs:
+    driver: local
+    labels:
+      - "com.khlloreda.volume=quickbooks-logs"

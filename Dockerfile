@@ -1,34 +1,50 @@
-# Dockerfile simple para QuickBooks Online App
+# Dockerfile actualizado para QuickBooks Sales Reporter con OpenWebUI
 FROM python:3.11-slim
+
+# Metadata
+LABEL version="2.0.0"
+LABEL description="QuickBooks Sales Reporter con soporte OpenWebUI"
+LABEL maintainer="KH LLOREDA, S.A."
 
 # Establecer directorio de trabajo
 WORKDIR /app
 
-# Instalar dependencias del sistema necesarias
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     curl \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar y instalar dependencias de Python
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt gunicorn
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar código de la aplicación
 COPY quickbooks_client.py .
 COPY app.py .
+COPY openapi_server.py .
 COPY sales_cache.py .
 COPY scheduler.py .
-COPY templates/ ./templates/
+COPY start.sh .
+
+# Nota: Los archivos .env se montan como volúmenes en docker-compose.yml por seguridad
 
 # Crear directorios para datos persistentes
 RUN mkdir -p /app/data && mkdir -p /app/logs
 
-# Crear usuario no privilegiado
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Hacer ejecutable el script de inicio
+RUN chmod +x /app/start.sh
+
+# Crear usuario no privilegiado y dar permisos
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app && \
+    chmod 755 /app/data && \
+    chmod 755 /app/logs
+
 USER appuser
 
-# Exponer puerto
-EXPOSE 8000
+# Exponer puertos
+EXPOSE 5000 8080
 
-# Comando de inicio con Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120", "app:app"]
+# Comando de inicio
+CMD ["/app/start.sh"]

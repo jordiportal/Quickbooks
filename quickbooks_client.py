@@ -470,3 +470,343 @@ class QuickBooksClient:
             9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
         }
         return months.get(month_number, f'Mes {month_number}')
+    
+    def get_detailed_annual_report(self, year: int = None) -> Dict:
+        """
+        Obtiene un informe detallado anual con desglose por productos, clientes y unidades
+        Args:
+            year: Año (por defecto año actual)
+        Returns:
+            Dict: Informe anual detallado
+        """
+        if not year:
+            year = datetime.now().year
+        
+        print(f"🔍 Generando informe detallado anual para {year}...")
+        
+        # Obtener todos los datos del año
+        annual_summary = {
+            'año': year,
+            'resumen_mensual': {},
+            'productos': {},
+            'clientes': {},
+            'totales_anuales': {
+                'ventas_totales': 0,
+                'unidades_totales': 0,
+                'transacciones_totales': 0,
+                'clientes_únicos': set(),
+                'productos_únicos': set()
+            }
+        }
+        
+        for month in range(1, 13):
+            print(f"📊 Procesando {month:02d}/{year}...")
+            
+            # Obtener datos mensuales detallados
+            monthly_data = self.get_detailed_monthly_data(year, month)
+            
+            # Agregar al resumen anual
+            monthly_summary = self._aggregate_monthly_to_annual(monthly_data, annual_summary)
+            annual_summary['resumen_mensual'][f"{month:02d}"] = monthly_summary
+        
+        # Convertir sets a listas para JSON
+        annual_summary['totales_anuales']['clientes_únicos'] = len(annual_summary['totales_anuales']['clientes_únicos'])
+        annual_summary['totales_anuales']['productos_únicos'] = len(annual_summary['totales_anuales']['productos_únicos'])
+        
+        # Agregar análisis y estadísticas
+        annual_summary['análisis'] = self._generate_annual_analysis(annual_summary)
+        annual_summary['mejores_productos'] = self._get_top_products(annual_summary['productos'])
+        annual_summary['mejores_clientes'] = self._get_top_customers(annual_summary['clientes'])
+        
+        return annual_summary
+    
+    def get_detailed_monthly_data(self, year: int, month: int) -> Dict:
+        """
+        Obtiene datos detallados de un mes específico incluyendo productos y clientes
+        Args:
+            year: Año
+            month: Mes
+        Returns:
+            Dict: Datos detallados del mes
+        """
+        # Calcular fechas del mes
+        start_date = datetime(year, month, 1).strftime('%Y-%m-%d')
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+        end_date = end_date.strftime('%Y-%m-%d')
+        
+        # Obtener transacciones
+        sales_receipts = self.get_sales_receipts(start_date, end_date)
+        invoices = self.get_invoices(start_date, end_date)
+        
+        # Procesar datos detallados
+        monthly_data = {
+            'período': f"{month:02d}/{year}",
+            'fecha_inicio': start_date,
+            'fecha_fin': end_date,
+            'productos': {},
+            'clientes': {},
+            'transacciones': [],
+            'totales': {
+                'ventas': 0,
+                'unidades': 0,
+                'transacciones': 0
+            }
+        }
+        
+        # Procesar recibos de venta
+        for receipt in sales_receipts:
+            self._process_transaction(receipt, 'receipt', monthly_data)
+        
+        # Procesar facturas
+        for invoice in invoices:
+            self._process_transaction(invoice, 'invoice', monthly_data)
+        
+        return monthly_data
+    
+    def _process_transaction(self, transaction: Dict, transaction_type: str, monthly_data: Dict):
+        """Procesa una transacción individual y extrae productos, clientes y unidades"""
+        try:
+            # Información básica de la transacción
+            total_amt = float(transaction.get('TotalAmt', 0))
+            txn_date = transaction.get('TxnDate', '')
+            txn_id = transaction.get('Id', '')
+            
+            # Información del cliente
+            customer_ref = transaction.get('CustomerRef', {})
+            customer_id = customer_ref.get('value', 'Sin cliente')
+            customer_name = customer_ref.get('name', 'Cliente anónimo')
+            
+            # Inicializar cliente si no existe
+            if customer_id not in monthly_data['clientes']:
+                monthly_data['clientes'][customer_id] = {
+                    'nombre': customer_name,
+                    'ventas_totales': 0,
+                    'unidades_totales': 0,
+                    'transacciones': 0,
+                    'productos': {}
+                }
+            
+            # Actualizar totales del cliente
+            monthly_data['clientes'][customer_id]['ventas_totales'] += total_amt
+            monthly_data['clientes'][customer_id]['transacciones'] += 1
+            
+            # Procesar líneas de productos
+            line_items = transaction.get('Line', [])
+            transaction_units = 0
+            
+            for line in line_items:
+                if line.get('DetailType') == 'SalesItemLineDetail':
+                    sales_detail = line.get('SalesItemLineDetail', {})
+                    item_ref = sales_detail.get('ItemRef', {})
+                    
+                    product_id = item_ref.get('value', 'Producto desconocido')
+                    product_name = item_ref.get('name', 'Producto sin nombre')
+                    quantity = float(sales_detail.get('Qty', 1))
+                    unit_price = float(sales_detail.get('UnitPrice', 0))
+                    line_total = float(line.get('Amount', 0))
+                    
+                    transaction_units += quantity
+                    
+                    # Inicializar producto si no existe
+                    if product_id not in monthly_data['productos']:
+                        monthly_data['productos'][product_id] = {
+                            'nombre': product_name,
+                            'unidades_vendidas': 0,
+                            'ventas_totales': 0,
+                            'precio_promedio': 0,
+                            'transacciones': 0,
+                            'clientes': set()
+                        }
+                    
+                    # Actualizar datos del producto
+                    producto = monthly_data['productos'][product_id]
+                    producto['unidades_vendidas'] += quantity
+                    producto['ventas_totales'] += line_total
+                    producto['transacciones'] += 1
+                    producto['clientes'].add(customer_id)
+                    
+                    # Calcular precio promedio
+                    if producto['unidades_vendidas'] > 0:
+                        producto['precio_promedio'] = producto['ventas_totales'] / producto['unidades_vendidas']
+                    
+                    # Agregar producto al cliente
+                    if product_id not in monthly_data['clientes'][customer_id]['productos']:
+                        monthly_data['clientes'][customer_id]['productos'][product_id] = {
+                            'nombre': product_name,
+                            'unidades': 0,
+                            'ventas': 0
+                        }
+                    
+                    monthly_data['clientes'][customer_id]['productos'][product_id]['unidades'] += quantity
+                    monthly_data['clientes'][customer_id]['productos'][product_id]['ventas'] += line_total
+            
+            # Actualizar unidades totales del cliente
+            monthly_data['clientes'][customer_id]['unidades_totales'] += transaction_units
+            
+            # Agregar transacción al resumen
+            monthly_data['transacciones'].append({
+                'id': txn_id,
+                'tipo': transaction_type,
+                'fecha': txn_date,
+                'cliente_id': customer_id,
+                'cliente_nombre': customer_name,
+                'total': total_amt,
+                'unidades': transaction_units
+            })
+            
+            # Actualizar totales generales
+            monthly_data['totales']['ventas'] += total_amt
+            monthly_data['totales']['unidades'] += transaction_units
+            monthly_data['totales']['transacciones'] += 1
+            
+        except Exception as e:
+            print(f"Error procesando transacción {transaction.get('Id', 'N/A')}: {str(e)}")
+    
+    def _aggregate_monthly_to_annual(self, monthly_data: Dict, annual_summary: Dict) -> Dict:
+        """Agrega datos mensuales al resumen anual"""
+        # Resumen mensual para el annual
+        monthly_summary = {
+            'ventas': monthly_data['totales']['ventas'],
+            'unidades': monthly_data['totales']['unidades'],
+            'transacciones': monthly_data['totales']['transacciones'],
+            'productos_únicos': len(monthly_data['productos']),
+            'clientes_únicos': len(monthly_data['clientes'])
+        }
+        
+        # Agregar productos al resumen anual
+        for product_id, product_data in monthly_data['productos'].items():
+            if product_id not in annual_summary['productos']:
+                annual_summary['productos'][product_id] = {
+                    'nombre': product_data['nombre'],
+                    'unidades_vendidas': 0,
+                    'ventas_totales': 0,
+                    'precio_promedio': 0,
+                    'transacciones': 0,
+                    'meses_activo': 0,
+                    'clientes': set()
+                }
+            
+            producto_anual = annual_summary['productos'][product_id]
+            producto_anual['unidades_vendidas'] += product_data['unidades_vendidas']
+            producto_anual['ventas_totales'] += product_data['ventas_totales']
+            producto_anual['transacciones'] += product_data['transacciones']
+            producto_anual['meses_activo'] += 1
+            producto_anual['clientes'].update(product_data['clientes'])
+            
+            # Recalcular precio promedio
+            if producto_anual['unidades_vendidas'] > 0:
+                producto_anual['precio_promedio'] = producto_anual['ventas_totales'] / producto_anual['unidades_vendidas']
+        
+        # Agregar clientes al resumen anual
+        for customer_id, customer_data in monthly_data['clientes'].items():
+            if customer_id not in annual_summary['clientes']:
+                annual_summary['clientes'][customer_id] = {
+                    'nombre': customer_data['nombre'],
+                    'ventas_totales': 0,
+                    'unidades_totales': 0,
+                    'transacciones': 0,
+                    'meses_activo': 0,
+                    'productos_únicos': set()
+                }
+            
+            cliente_anual = annual_summary['clientes'][customer_id]
+            cliente_anual['ventas_totales'] += customer_data['ventas_totales']
+            cliente_anual['unidades_totales'] += customer_data['unidades_totales']
+            cliente_anual['transacciones'] += customer_data['transacciones']
+            cliente_anual['meses_activo'] += 1
+            cliente_anual['productos_únicos'].update(customer_data['productos'].keys())
+        
+        # Actualizar totales anuales
+        totales = annual_summary['totales_anuales']
+        totales['ventas_totales'] += monthly_data['totales']['ventas']
+        totales['unidades_totales'] += monthly_data['totales']['unidades']
+        totales['transacciones_totales'] += monthly_data['totales']['transacciones']
+        totales['clientes_únicos'].update(monthly_data['clientes'].keys())
+        totales['productos_únicos'].update(monthly_data['productos'].keys())
+        
+        return monthly_summary
+    
+    def _generate_annual_analysis(self, annual_summary: Dict) -> Dict:
+        """Genera análisis estadístico del año"""
+        resumen_mensual = annual_summary['resumen_mensual']
+        
+        # Encontrar mejores y peores meses
+        mejor_mes_ventas = max(resumen_mensual.items(), key=lambda x: x[1]['ventas'])
+        peor_mes_ventas = min(resumen_mensual.items(), key=lambda x: x[1]['ventas'])
+        mejor_mes_unidades = max(resumen_mensual.items(), key=lambda x: x[1]['unidades'])
+        
+        # Calcular promedios
+        meses_con_datos = len([m for m in resumen_mensual.values() if m['ventas'] > 0])
+        promedio_ventas = annual_summary['totales_anuales']['ventas_totales'] / max(meses_con_datos, 1)
+        promedio_unidades = annual_summary['totales_anuales']['unidades_totales'] / max(meses_con_datos, 1)
+        
+        return {
+            'mejor_mes_ventas': {
+                'mes': mejor_mes_ventas[0],
+                'ventas': mejor_mes_ventas[1]['ventas'],
+                'unidades': mejor_mes_ventas[1]['unidades']
+            },
+            'peor_mes_ventas': {
+                'mes': peor_mes_ventas[0],
+                'ventas': peor_mes_ventas[1]['ventas'],
+                'unidades': peor_mes_ventas[1]['unidades']
+            },
+            'mejor_mes_unidades': {
+                'mes': mejor_mes_unidades[0],
+                'unidades': mejor_mes_unidades[1]['unidades'],
+                'ventas': mejor_mes_unidades[1]['ventas']
+            },
+            'promedios': {
+                'ventas_mensuales': promedio_ventas,
+                'unidades_mensuales': promedio_unidades,
+                'transacciones_mensuales': annual_summary['totales_anuales']['transacciones_totales'] / max(meses_con_datos, 1)
+            },
+            'meses_con_datos': meses_con_datos
+        }
+    
+    def _get_top_products(self, productos: Dict, limit: int = 10) -> Dict:
+        """Obtiene los mejores productos por ventas y unidades"""
+        # Convertir sets a listas para poder procesar
+        productos_procesados = []
+        for product_id, data in productos.items():
+            product_copy = data.copy()
+            product_copy['id'] = product_id
+            product_copy['clientes_únicos'] = len(data['clientes'])
+            del product_copy['clientes']  # Remover el set
+            productos_procesados.append(product_copy)
+        
+        # Ordenar por ventas
+        top_by_sales = sorted(productos_procesados, key=lambda x: x['ventas_totales'], reverse=True)[:limit]
+        
+        # Ordenar por unidades
+        top_by_units = sorted(productos_procesados, key=lambda x: x['unidades_vendidas'], reverse=True)[:limit]
+        
+        return {
+            'por_ventas': top_by_sales,
+            'por_unidades': top_by_units
+        }
+    
+    def _get_top_customers(self, clientes: Dict, limit: int = 10) -> Dict:
+        """Obtiene los mejores clientes por ventas y unidades"""
+        # Convertir sets a listas para poder procesar
+        clientes_procesados = []
+        for customer_id, data in clientes.items():
+            customer_copy = data.copy()
+            customer_copy['id'] = customer_id
+            customer_copy['productos_únicos'] = len(data['productos_únicos'])
+            del customer_copy['productos_únicos']  # Remover el set
+            clientes_procesados.append(customer_copy)
+        
+        # Ordenar por ventas
+        top_by_sales = sorted(clientes_procesados, key=lambda x: x['ventas_totales'], reverse=True)[:limit]
+        
+        # Ordenar por unidades
+        top_by_units = sorted(clientes_procesados, key=lambda x: x['unidades_totales'], reverse=True)[:limit]
+        
+        return {
+            'por_ventas': top_by_sales,
+            'por_unidades': top_by_units
+        }

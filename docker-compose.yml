@@ -1,23 +1,39 @@
-version: '3.8'
-
 services:
-  # Solo la aplicación QuickBooks
-  quickbooks-app:
-    build: .
-    container_name: quickbooks-app
+  # QuickBooks Sales Reporter con OpenWebUI
+  quickbooks-reporter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quickbooks-reporter
     restart: unless-stopped
     ports:
-      - "8000:8000"  # Exponer puerto para tu Nginx existente
+      - "5000:5000"  # Flask - Aplicación principal
+      - "8080:8080"  # FastAPI - OpenWebUI Interface
     environment:
       - FLASK_ENV=production
       - SALES_UPDATE_INTERVAL=1  # Horas entre actualizaciones automáticas
-    env_file:
-      - .env.production
     volumes:
       - ./data:/app/data      # Persistir base de datos SQLite
       - ./logs:/app/logs      # Persistir logs
+      - ./.env:/app/.env      # Configuración de desarrollo (funciona)
+      - ./.env.production:/app/.env.production:ro  # Configuración de producción (opcional)
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health || curl -f http://localhost:8080/"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
+    networks:
+      - quickbooks-network
+
+# Red personalizada (opcional)
+networks:
+  quickbooks-network:
+    driver: bridge
+
+# Volúmenes nombrados (opcional para mayor persistencia)
+volumes:
+  quickbooks-data:
+    driver: local
+  quickbooks-logs:
+    driver: local
