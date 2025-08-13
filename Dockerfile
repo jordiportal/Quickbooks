@@ -2,8 +2,8 @@
 FROM python:3.11-slim
 
 # Metadata
-LABEL version="2.0.0"
-LABEL description="QuickBooks Sales Reporter con soporte OpenWebUI"
+LABEL version="2.0.4-logging"
+LABEL description="QuickBooks Sales Reporter con logging avanzado y error handling"
 LABEL maintainer="KH LLOREDA, S.A."
 
 # Establecer directorio de trabajo
@@ -21,6 +21,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar código de la aplicación
 COPY quickbooks_client.py .
+COPY quickbooks_logger.py .
+COPY quickbooks_errors.py .
 COPY app.py .
 COPY openapi_server.py .
 COPY sales_cache.py .

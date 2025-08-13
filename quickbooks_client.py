@@ -6,10 +6,15 @@ Este módulo proporciona funciones para conectarse a QuickBooks Online y obtener
 import os
 import requests
 import secrets
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from urllib.parse import urlencode
 from dotenv import load_dotenv
+
+# Importar sistema de logging y manejo de errores
+from quickbooks_logger import qb_logger
+from quickbooks_errors import QBErrorHandler, QBError, QBErrorType
 
 # Cargar variables de entorno
 load_dotenv()
@@ -145,6 +150,8 @@ class QuickBooksClient:
             'redirect_uri': self.redirect_uri
         }
         
+        start_time = time.time()
+        
         try:
             response = requests.post(
                 token_url,
@@ -153,17 +160,69 @@ class QuickBooksClient:
                 auth=(self.client_id, self.client_secret)
             )
             
+            duration_ms = (time.time() - start_time) * 1000
+            intuit_tid = response.headers.get('intuit_tid')
+            
+            # Log de la petición OAuth
+            qb_logger.log_api_request(
+                method='POST',
+                url=token_url,
+                params=None,
+                headers=headers,
+                response_code=response.status_code,
+                response_headers=response.headers,
+                intuit_tid=intuit_tid,
+                duration_ms=duration_ms
+            )
+            
             if response.status_code == 200:
                 token_data = response.json()
                 self.access_token = token_data.get('access_token')
                 self.refresh_token = token_data.get('refresh_token')
                 self.company_id = realm_id
+                
+                # Log de éxito OAuth
+                qb_logger.log_oauth_flow(
+                    action='exchange_code_for_tokens',
+                    success=True,
+                    state_token=state_token,
+                    intuit_tid=intuit_tid
+                )
+                
                 return True
             else:
+                # Manejo de error con logging
+                qb_error = QBErrorHandler.parse_oauth_error(response)
+                
+                qb_logger.log_oauth_flow(
+                    action='exchange_code_for_tokens',
+                    success=False,
+                    error_code=qb_error.qb_error_code,
+                    error_description=qb_error.message,
+                    state_token=state_token,
+                    intuit_tid=intuit_tid
+                )
+                
+                qb_logger.log_error(
+                    error_type=qb_error.error_type.value,
+                    error_message=qb_error.message,
+                    context={'action': 'exchange_code_for_tokens', 'realm_id': realm_id},
+                    intuit_tid=intuit_tid,
+                    qb_error_code=qb_error.qb_error_code,
+                    http_code=qb_error.http_code
+                )
+                
                 print(f"Error obteniendo tokens: {response.status_code} - {response.text}")
                 return False
                 
         except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            qb_logger.log_error(
+                error_type="network",
+                error_message=f"Error en intercambio de tokens: {str(e)}",
+                context={'action': 'exchange_code_for_tokens', 'realm_id': realm_id, 'state_token': state_token},
+                exception=e
+            )
             print(f"Error en intercambio de tokens: {str(e)}")
             return False
     
@@ -191,6 +250,8 @@ class QuickBooksClient:
             'refresh_token': self.refresh_token
         }
         
+        start_time = time.time()
+        
         try:
             response = requests.post(
                 token_url,
@@ -199,43 +260,85 @@ class QuickBooksClient:
                 auth=(self.client_id, self.client_secret)
             )
             
+            duration_ms = (time.time() - start_time) * 1000
+            intuit_tid = response.headers.get('intuit_tid')
+            
+            # Log de la petición OAuth
+            qb_logger.log_api_request(
+                method='POST',
+                url=token_url,
+                params=None,
+                headers=headers,
+                response_code=response.status_code,
+                response_headers=response.headers,
+                intuit_tid=intuit_tid,
+                duration_ms=duration_ms
+            )
+            
             if response.status_code == 200:
                 token_data = response.json()
                 self.access_token = token_data.get('access_token')
                 self.refresh_token = token_data.get('refresh_token')
+                
+                # Log de éxito OAuth
+                qb_logger.log_oauth_flow(
+                    action='refresh_token',
+                    success=True,
+                    intuit_tid=intuit_tid
+                )
+                
                 print("✅ Tokens refrescados exitosamente")
                 return True
             else:
-                # Manejo específico de errores OAuth
-                try:
-                    error_data = response.json()
-                    error_code = error_data.get('error', 'unknown_error')
-                    error_description = error_data.get('error_description', 'No description available')
-                    
-                    if error_code == 'invalid_grant':
-                        print("❌ OAuth Error: invalid_grant - Refresh token expirado o inválido")
-                        print("   Se requiere nueva autorización del usuario")
-                        # Limpiar tokens inválidos
-                        self.access_token = None
-                        self.refresh_token = None
-                        self.company_id = None
-                    elif error_code == 'invalid_client':
-                        print("❌ OAuth Error: invalid_client - Credenciales de cliente inválidas")
-                    else:
-                        print(f"❌ OAuth Error: {error_code} - {error_description}")
-                        
-                except:
-                    print(f"❌ Error refrescando token: HTTP {response.status_code} - {response.text}")
+                # Manejo específico de errores OAuth con logging
+                qb_error = QBErrorHandler.parse_oauth_error(response)
+                
+                # Log del error OAuth
+                qb_logger.log_oauth_flow(
+                    action='refresh_token',
+                    success=False,
+                    error_code=qb_error.qb_error_code,
+                    error_description=qb_error.message,
+                    intuit_tid=intuit_tid
+                )
+                
+                qb_logger.log_error(
+                    error_type=qb_error.error_type.value,
+                    error_message=qb_error.message,
+                    context={'action': 'refresh_token'},
+                    intuit_tid=intuit_tid,
+                    qb_error_code=qb_error.qb_error_code,
+                    http_code=qb_error.http_code
+                )
+                
+                # Limpiar tokens si es invalid_grant
+                if qb_error.qb_error_code == 'invalid_grant':
+                    print("❌ OAuth Error: invalid_grant - Refresh token expirado o inválido")
+                    print("   Se requiere nueva autorización del usuario")
+                    self.access_token = None
+                    self.refresh_token = None
+                    self.company_id = None
+                elif qb_error.qb_error_code == 'invalid_client':
+                    print("❌ OAuth Error: invalid_client - Credenciales de cliente inválidas")
+                else:
+                    print(f"❌ OAuth Error: {qb_error.qb_error_code} - {qb_error.message}")
                 
                 return False
                 
         except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            qb_logger.log_error(
+                error_type="network",
+                error_message=f"Error refrescando token: {str(e)}",
+                context={'action': 'refresh_token', 'token_url': token_url},
+                exception=e
+            )
             print(f"Error refrescando token: {str(e)}")
             return False
     
     def make_api_request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
         """
-        Realiza una petición a la API de QuickBooks
+        Realiza una petición a la API de QuickBooks con logging completo
         Args:
             endpoint: Endpoint de la API (ej: 'items', 'customers')
             params: Parámetros de consulta opcionales
@@ -243,7 +346,12 @@ class QuickBooksClient:
             Dict: Respuesta de la API o None si hay error
         """
         if not self.access_token or not self.company_id:
-            print("No hay tokens de acceso o company_id configurados")
+            error_msg = "No hay tokens de acceso o company_id configurados"
+            qb_logger.log_error(
+                error_type="configuration",
+                error_message=error_msg,
+                context={'endpoint': endpoint, 'has_token': bool(self.access_token), 'has_company_id': bool(self.company_id)}
+            )
             return None
         
         url = f"{self.base_url}/v3/company/{self.company_id}/{endpoint}"
@@ -253,25 +361,112 @@ class QuickBooksClient:
             'Accept': 'application/json'
         }
         
+        start_time = time.time()
+        
         try:
             response = requests.get(url, headers=headers, params=params)
+            duration_ms = (time.time() - start_time) * 1000
+            intuit_tid = response.headers.get('intuit_tid')
+            
+            # Log de la petición
+            qb_logger.log_api_request(
+                method='GET',
+                url=url,
+                params=params,
+                headers=headers,
+                response_code=response.status_code,
+                response_headers=response.headers,
+                intuit_tid=intuit_tid,
+                duration_ms=duration_ms
+            )
             
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                # Log de performance
+                record_count = self._count_records(data)
+                qb_logger.log_performance(
+                    operation=f'api_request_{endpoint}',
+                    duration_ms=duration_ms,
+                    records_processed=record_count,
+                    company_id=self.company_id
+                )
+                return data
+                
             elif response.status_code == 401:
                 # Token expirado, intentar refrescar
+                qb_logger.logger.info("Token expirado, intentando refrescar...")
+                
                 if self.refresh_access_token():
                     headers['Authorization'] = f'Bearer {self.access_token}'
+                    start_time = time.time()
                     response = requests.get(url, headers=headers, params=params)
+                    duration_ms = (time.time() - start_time) * 1000
+                    intuit_tid = response.headers.get('intuit_tid')
+                    
+                    # Log del segundo intento
+                    qb_logger.log_api_request(
+                        method='GET',
+                        url=url,
+                        params=params,
+                        headers=headers,
+                        response_code=response.status_code,
+                        response_headers=response.headers,
+                        intuit_tid=intuit_tid,
+                        duration_ms=duration_ms
+                    )
+                    
                     if response.status_code == 200:
-                        return response.json()
-                
+                        data = response.json()
+                        record_count = self._count_records(data)
+                        qb_logger.log_performance(
+                            operation=f'api_request_{endpoint}_retry',
+                            duration_ms=duration_ms,
+                            records_processed=record_count,
+                            company_id=self.company_id
+                        )
+                        return data
+            
+            # Manejar error usando el sistema de errores
+            qb_error = QBErrorHandler.parse_api_error(response)
+            qb_logger.log_error(
+                error_type=qb_error.error_type.value,
+                error_message=qb_error.message,
+                context={'endpoint': endpoint, 'params': params},
+                intuit_tid=qb_error.intuit_tid,
+                qb_error_code=qb_error.qb_error_code,
+                http_code=qb_error.http_code
+            )
+            
             print(f"Error en API request: {response.status_code} - {response.text}")
             return None
             
         except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            qb_logger.log_error(
+                error_type="network",
+                error_message=f"Error realizando petición: {str(e)}",
+                context={'endpoint': endpoint, 'params': params, 'url': url},
+                exception=e
+            )
             print(f"Error realizando petición: {str(e)}")
             return None
+    
+    def _count_records(self, data: Dict) -> int:
+        """
+        Cuenta el número de registros en una respuesta de QuickBooks
+        """
+        if not data:
+            return 0
+        
+        query_response = data.get('QueryResponse', {})
+        total_count = 0
+        
+        # Contar diferentes tipos de entidades
+        for key, value in query_response.items():
+            if isinstance(value, list):
+                total_count += len(value)
+        
+        return total_count
     
     def get_sales_receipts(self, start_date: str = None, end_date: str = None) -> List[Dict]:
         """
@@ -331,10 +526,16 @@ class QuickBooksClient:
         Returns:
             Dict: Resumen de ventas del mes
         """
+        start_time = time.time()
+        
         if not year or not month:
             today = datetime.now()
             year = today.year
             month = today.month
+        
+        period = f"{month:02d}/{year}"
+        
+        qb_logger.logger.info(f"Obteniendo resumen de ventas para período: {period}")
         
         # Calcular fechas del mes
         start_date = datetime(year, month, 1).strftime('%Y-%m-%d')
@@ -344,34 +545,57 @@ class QuickBooksClient:
             end_date = datetime(year, month + 1, 1) - timedelta(days=1)
         end_date = end_date.strftime('%Y-%m-%d')
         
-        # Obtener datos
-        sales_receipts = self.get_sales_receipts(start_date, end_date)
-        invoices = self.get_invoices(start_date, end_date)
-        
-        # Calcular totales
-        total_sales_receipts = sum(float(receipt.get('TotalAmt', 0)) for receipt in sales_receipts)
-        total_invoices = sum(float(invoice.get('TotalAmt', 0)) for invoice in invoices)
-        
-        summary = {
-            'período': f"{month:02d}/{year}",
-            'fecha_inicio': start_date,
-            'fecha_fin': end_date,
-            'recibos_de_venta': {
-                'cantidad': len(sales_receipts),
-                'total': total_sales_receipts
-            },
-            'facturas': {
-                'cantidad': len(invoices),
-                'total': total_invoices
-            },
-            'total_ventas': total_sales_receipts + total_invoices,
-            'detalle_transacciones': {
-                'recibos': sales_receipts,
-                'facturas': invoices
+        try:
+            # Obtener datos
+            sales_receipts = self.get_sales_receipts(start_date, end_date)
+            invoices = self.get_invoices(start_date, end_date)
+            
+            # Calcular totales
+            total_sales_receipts = sum(float(receipt.get('TotalAmt', 0)) for receipt in sales_receipts)
+            total_invoices = sum(float(invoice.get('TotalAmt', 0)) for invoice in invoices)
+            total_transactions = len(sales_receipts) + len(invoices)
+            
+            summary = {
+                'período': period,
+                'fecha_inicio': start_date,
+                'fecha_fin': end_date,
+                'recibos_de_venta': {
+                    'cantidad': len(sales_receipts),
+                    'total': total_sales_receipts
+                },
+                'facturas': {
+                    'cantidad': len(invoices),
+                    'total': total_invoices
+                },
+                'total_ventas': total_sales_receipts + total_invoices,
+                'detalle_transacciones': {
+                    'recibos': sales_receipts,
+                    'facturas': invoices
+                }
             }
-        }
-        
-        return summary
+            
+            # Log de performance
+            duration_ms = (time.time() - start_time) * 1000
+            qb_logger.log_performance(
+                operation='get_monthly_sales_summary',
+                duration_ms=duration_ms,
+                records_processed=total_transactions,
+                company_id=self.company_id
+            )
+            
+            qb_logger.logger.info(f"Resumen mensual completado: {total_transactions} transacciones, ${total_sales_receipts + total_invoices:.2f} total")
+            
+            return summary
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            qb_logger.log_error(
+                error_type="processing",
+                error_message=f"Error obteniendo resumen mensual: {str(e)}",
+                context={'year': year, 'month': month, 'period': period},
+                exception=e
+            )
+            raise
 
     def get_annual_sales_summary(self, year: int = None) -> Dict:
         """
