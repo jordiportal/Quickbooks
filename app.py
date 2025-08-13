@@ -1205,7 +1205,9 @@ def index():
 @app.route('/auth')
 def auth():
     """Inicia el proceso de autenticación con QuickBooks"""
-    auth_url = qb_client.get_auth_url()
+    auth_url, state_token = qb_client.get_auth_url()
+    # Guardar state token en sesión para validación posterior
+    session['oauth_state'] = state_token
     return redirect(auth_url)
 
 @app.route('/callback')
@@ -1228,8 +1230,20 @@ def callback():
             error="Faltan parámetros de autorización"
         )
     
-    # Intercambiar código por tokens
-    success = qb_client.exchange_code_for_tokens(code, realm_id)
+    # Validar CSRF protection
+    expected_state = session.get('oauth_state')
+    if not expected_state or state != expected_state:
+        session.pop('oauth_state', None)  # Limpiar state usado
+        return render_template_string(
+            MAIN_TEMPLATE,
+            error="Error de seguridad: Estado OAuth inválido. Por favor, intenta de nuevo."
+        )
+    
+    # Limpiar state token usado
+    session.pop('oauth_state', None)
+    
+    # Intercambiar código por tokens con validación CSRF adicional
+    success = qb_client.exchange_code_for_tokens(code, realm_id, expected_state)
     
     if success:
         # Guardar tokens en la sesión

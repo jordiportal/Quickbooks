@@ -27,6 +27,9 @@ COPY sales_cache.py .
 COPY scheduler.py .
 COPY start.sh .
 
+# Copiar templates HTML
+COPY templates/ ./templates/
+
 # Nota: Los archivos .env se montan como volúmenes en docker-compose.yml por seguridad
 
 # Crear directorios para datos persistentes

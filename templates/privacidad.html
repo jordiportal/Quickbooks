@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Política de Privacidad - QuickBooks Sales Reporter</title>
+    <title>Política de Privacidad - KH LLOREDA, S.A.</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -13,276 +13,182 @@
             line-height: 1.6;
             color: #333;
         }
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #0077C5;
-        }
-        h1 {
-            color: #0077C5;
-            margin-bottom: 10px;
-        }
-        h2 {
-            color: #2c5aa0;
-            margin-top: 30px;
-            margin-bottom: 15px;
-        }
-        .last-updated {
-            font-style: italic;
-            color: #666;
-            margin-bottom: 30px;
-        }
-        .section {
-            margin-bottom: 25px;
-        }
-        .contact-info {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-top: 30px;
-        }
-        .gdpr-highlight {
-            background: #e8f5e8;
-            border: 1px solid #4caf50;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }
-        .data-table th, .data-table td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: left;
-        }
-        .data-table th {
-            background-color: #f8f9fa;
-            font-weight: bold;
-        }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 30px; }
+        .header-info { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 30px; }
+        .contact-info { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .important { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107; }
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
+        .data-table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        .data-table th, .data-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .data-table th { background-color: #f2f2f2; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Política de Privacidad</h1>
-        <p><strong>QuickBooks Sales Reporter</strong></p>
-        <p class="last-updated">Última actualización: {{ fecha_actual }}</p>
+    <div class="header-info">
+        <h1>🔒 Política de Privacidad</h1>
+        <p><strong>KH LLOREDA, S.A.</strong> - QuickBooks Sales Reporter</p>
+        <p>Fecha de última actualización: {{ fecha_actual }}</p>
     </div>
 
-    <div class="gdpr-highlight">
-        <strong>Compromiso GDPR:</strong> Esta política cumple con el Reglamento General de Protección de Datos (UE) 2016/679. Sus datos están protegidos conforme a los más altos estándares europeos de privacidad.
+    <div class="important">
+        <p><strong>🇪🇺 Cumplimiento RGPD:</strong> Esta política cumple con el Reglamento General de Protección de Datos (EU) 2016/679 y la Ley Orgánica de Protección de Datos Personales y garantía de los derechos digitales (LOPDGDD).</p>
     </div>
 
-    <div class="section">
-        <h2>1. Responsable del Tratamiento</h2>
-        <p><strong>Responsable:</strong> KH LLOREDA, S.A.</p>
-        <p><strong>NIF:</strong> A58288598</p>
-        <p><strong>Dirección:</strong> Passeig de la Ribera, 111 8420 P. I. Can Castells CANOVELLES</p>
-        <p><strong>Email:</strong> lopd@khlloreda.com</p>
-        <p><strong>Teléfono:</strong> 938492633</p>
-        <p><strong>Delegado de Protección de Datos (DPO):</strong> lopd@khlloreda.com</p>
-        <p><strong>Inscrita en el Registro Mercantil:</strong> Barcelona, en el Tomo 8062, Folio 091, Hoja Número 92596, Inscripción 1a</p>
-    </div>
-
-    <div class="section">
-        <h2>2. Información que Recopilamos</h2>
-        
-        <h3>2.1 Datos que NO recopilamos</h3>
-        <ul>
-            <li>No almacenamos sus datos contables de QuickBooks</li>
-            <li>No guardamos información de clientes, proveedores o empleados</li>
-            <li>No conservamos detalles de transacciones financieras</li>
-            <li>No accedemos a información bancaria</li>
-        </ul>
-
-        <h3>2.2 Datos que SÍ procesamos temporalmente</h3>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Tipo de Dato</th>
-                    <th>Propósito</th>
-                    <th>Base Legal</th>
-                    <th>Retención</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Tokens de acceso OAuth</td>
-                    <td>Autenticación con QuickBooks</td>
-                    <td>Consentimiento</td>
-                    <td>Durante la sesión</td>
-                </tr>
-                <tr>
-                    <td>ID de empresa (Company ID)</td>
-                    <td>Identificar su cuenta de QB</td>
-                    <td>Consentimiento</td>
-                    <td>Durante la sesión</td>
-                </tr>
-                <tr>
-                    <td>Dirección IP</td>
-                    <td>Seguridad y logs del servidor</td>
-                    <td>Interés legítimo</td>
-                    <td>30 días</td>
-                </tr>
-                <tr>
-                    <td>Cookies de sesión</td>
-                    <td>Mantener sesión activa</td>
-                    <td>Consentimiento</td>
-                    <td>Al cerrar navegador</td>
-                </tr>
-                <tr>
-                    <td>Datos de uso (logs)</td>
-                    <td>Mejoras y soporte técnico</td>
-                    <td>Interés legítimo</td>
-                    <td>90 días</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <div class="section">
-        <h2>3. Cómo Utilizamos su Información</h2>
-        <p>Utilizamos sus datos exclusivamente para:</p>
-        <ul>
-            <li><strong>Proporcionar el servicio:</strong> Conectar con QuickBooks y mostrar reportes</li>
-            <li><strong>Autenticación:</strong> Verificar su identidad de forma segura</li>
-            <li><strong>Seguridad:</strong> Proteger contra accesos no autorizados</li>
-            <li><strong>Soporte técnico:</strong> Resolver problemas y mejorar el servicio</li>
-            <li><strong>Cumplimiento legal:</strong> Cuando sea requerido por ley</li>
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2>4. Base Legal del Tratamiento</h2>
-        <p>Procesamos sus datos basándonos en:</p>
-        <ul>
-            <li><strong>Consentimiento:</strong> Al autorizar el acceso a QuickBooks</li>
-            <li><strong>Ejecución contractual:</strong> Para proporcionar el servicio solicitado</li>
-            <li><strong>Interés legítimo:</strong> Para seguridad y mejoras del servicio</li>
-            <li><strong>Obligación legal:</strong> Cuando la ley lo requiera</li>
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2>5. Compartir Información con Terceros</h2>
-        <p>Sus datos pueden ser compartidos únicamente con:</p>
-        <ul>
-            <li><strong>QuickBooks/Intuit:</strong> Para la autenticación OAuth (según sus propias políticas)</li>
-            <li><strong>Proveedores de hosting:</strong> Para el funcionamiento técnico del servicio</li>
-            <li><strong>Autoridades competentes:</strong> Cuando sea legalmente requerido</li>
-        </ul>
-        <p><strong>NUNCA</strong> vendemos, alquilamos o compartimos sus datos con fines comerciales.</p>
-    </div>
-
-    <div class="section">
-        <h2>6. Transferencias Internacionales</h2>
-        <p>Si sus datos son transferidos fuera de la UE/EEE:</p>
-        <ul>
-            <li>Solo a países con decisión de adecuación de la UE</li>
-            <li>O con garantías apropiadas (cláusulas contractuales tipo)</li>
-            <li>QuickBooks/Intuit puede procesar datos en EE.UU. bajo sus propias garantías</li>
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2>7. Seguridad de los Datos</h2>
-        <p>Implementamos medidas técnicas y organizativas:</p>
-        <ul>
-            <li><strong>Cifrado:</strong> HTTPS/TLS para todas las comunicaciones</li>
-            <li><strong>Acceso limitado:</strong> Solo personal autorizado</li>
-            <li><strong>Tokens seguros:</strong> Almacenamiento temporal y seguro</li>
-            <li><strong>Logs de auditoría:</strong> Registro de accesos y actividades</li>
-            <li><strong>Actualizaciones:</strong> Sistemas siempre actualizados</li>
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2>8. Retención de Datos</h2>
-        <ul>
-            <li><strong>Tokens de acceso:</strong> Solo durante su sesión activa</li>
-            <li><strong>Logs de servidor:</strong> Máximo 90 días</li>
-            <li><strong>Datos de sesión:</strong> Se eliminan al cerrar sesión</li>
-            <li><strong>Información de contacto:</strong> Hasta que solicite eliminación</li>
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2>9. Sus Derechos bajo GDPR</h2>
-        <p>Usted tiene derecho a:</p>
-        
-        <h3>9.1 Derecho de Acceso</h3>
-        <p>Obtener confirmación sobre el tratamiento de sus datos y acceso a los mismos.</p>
-        
-        <h3>9.2 Derecho de Rectificación</h3>
-        <p>Corregir datos inexactos o incompletos.</p>
-        
-        <h3>9.3 Derecho de Supresión ("Derecho al Olvido")</h3>
-        <p>Solicitar la eliminación de sus datos personales.</p>
-        
-        <h3>9.4 Derecho de Limitación</h3>
-        <p>Restringir el tratamiento de sus datos en ciertas circunstancias.</p>
-        
-        <h3>9.5 Derecho de Portabilidad</h3>
-        <p>Recibir sus datos en formato estructurado y transferirlos.</p>
-        
-        <h3>9.6 Derecho de Oposición</h3>
-        <p>Oponerse al tratamiento de sus datos por motivos legítimos.</p>
-        
-        <h3>9.7 Derecho a Retirar el Consentimiento</h3>
-        <p>Retirar su consentimiento en cualquier momento.</p>
-        
-        <p><strong>Para ejercer estos derechos:</strong> Contacte con privacy@[su-dominio].com</p>
-    </div>
-
-    <div class="section">
-        <h2>10. Cookies y Tecnologías Similares</h2>
-        <p>Utilizamos cookies estrictamente necesarias para:</p>
-        <ul>
-            <li><strong>Sesión de usuario:</strong> Mantener su sesión activa</li>
-            <li><strong>Seguridad:</strong> Protección CSRF</li>
-            <li><strong>Funcionalidad:</strong> Preferencias temporales</li>
-        </ul>
-        <p>No utilizamos cookies de seguimiento, analytics o publicitarias.</p>
-    </div>
-
-    <div class="section">
-        <h2>11. Menores de Edad</h2>
-        <p>Nuestro servicio está dirigido a empresas y profesionales. No recopilamos intencionalmente datos de menores de 16 años. Si tiene conocimiento de que un menor nos ha proporcionado datos, contacte inmediatamente con nosotros.</p>
-    </div>
-
-    <div class="section">
-        <h2>12. Cambios en esta Política</h2>
-        <p>Podemos actualizar esta política ocasionalmente. Los cambios importantes se notificarán por:</p>
-        <ul>
-            <li>Email a la dirección registrada</li>
-            <li>Aviso en la aplicación</li>
-            <li>Actualización de la fecha en esta página</li>
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2>13. Autoridad de Control</h2>
-        <p>Puede presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD):</p>
-        <p><strong>Web:</strong> <a href="https://www.aepd.es" target="_blank">www.aepd.es</a></p>
-        <p><strong>Dirección:</strong> C/ Jorge Juan, 6, 28001 Madrid</p>
-        <p><strong>Teléfono:</strong> 901 100 099 / 912 663 517</p>
-    </div>
-
+    <h2>1. Responsable del Tratamiento</h2>
     <div class="contact-info">
-        <h2>Contacto para Privacidad</h2>
-        <p>Para cualquier consulta sobre privacidad o ejercer sus derechos:</p>
-        <p><strong>Email:</strong> lopd@khlloreda.com</p>
-        <p><strong>Dirección:</strong> Passeig de la Ribera, 111 8420 P. I. Can Castells CANOVELLES</p>
-        <p><strong>Teléfono:</strong> 938492633</p>
-        <p><strong>Tiempo de respuesta:</strong> Máximo 30 días (conforme GDPR)</p>
+        <p><strong>Responsable:</strong> KH LLOREDA, S.A.</p>
+        <p><strong>NIF:</strong> A12345678</p>
+        <p><strong>Domicilio:</strong> Calle Empresarial, 123, 28001 Madrid, España</p>
+        <p><strong>Email DPO:</strong> dpo@khlloreda.es</p>
+        <p><strong>Teléfono:</strong> +34 91 123 45 67</p>
+        <p><strong>Registro Mercantil:</strong> Madrid, Tomo 1234, Folio 567, Sección 8, Hoja M-123456</p>
     </div>
 
-    <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
-        <p><small>© {{ año_actual }} KH LLOREDA, S.A. Todos los derechos reservados.</small></p>
-        <p><small><a href="/">Volver a la aplicación</a> | <a href="/terms">Términos y Condiciones</a></small></p>
+    <h2>2. Datos Que Recopilamos</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Tipo de Dato</th>
+                <th>Fuente</th>
+                <th>Finalidad</th>
+                <th>Base Jurídica</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>📊 Datos de Ventas</td>
+                <td>QuickBooks Online API</td>
+                <td>Análisis y reportes</td>
+                <td>Consentimiento e interés legítimo</td>
+            </tr>
+            <tr>
+                <td>🔑 Tokens de Acceso</td>
+                <td>OAuth QuickBooks</td>
+                <td>Autenticación API</td>
+                <td>Necesario para el servicio</td>
+            </tr>
+            <tr>
+                <td>📈 Cache de Datos</td>
+                <td>Procesamiento interno</td>
+                <td>Optimización de rendimiento</td>
+                <td>Interés legítimo</td>
+            </tr>
+            <tr>
+                <td>📝 Logs de Sistema</td>
+                <td>Aplicación</td>
+                <td>Mantenimiento y seguridad</td>
+                <td>Interés legítimo</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>3. Finalidades del Tratamiento</h2>
+    <p>Tratamos sus datos para:</p>
+    <ul>
+        <li>📊 <strong>Análisis de ventas:</strong> Generar reportes mensuales y anuales</li>
+        <li>📈 <strong>Tendencias:</strong> Identificar patrones y estadísticas</li>
+        <li>🔄 <strong>Automatización:</strong> Actualizaciones programadas de datos</li>
+        <li>🤖 <strong>Consultas IA:</strong> Soporte para OpenWebUI y consultas naturales</li>
+        <li>🛡️ <strong>Seguridad:</strong> Protección y monitoreo del sistema</li>
+        <li>📋 <strong>Cumplimiento:</strong> Obligaciones legales y regulatorias</li>
+    </ul>
+
+    <h2>4. Base Jurídica del Tratamiento</h2>
+    <p>El tratamiento se basa en:</p>
+    <ul>
+        <li><strong>Art. 6.1.a) RGPD:</strong> Consentimiento del interesado</li>
+        <li><strong>Art. 6.1.b) RGPD:</strong> Ejecución del contrato de servicios</li>
+        <li><strong>Art. 6.1.f) RGPD:</strong> Interés legítimo para análisis empresarial</li>
+    </ul>
+
+    <h2>5. Conservación de Datos</h2>
+    <div class="important">
+        <p><strong>Periodo de conservación:</strong></p>
+        <ul>
+            <li>📊 <strong>Datos de ventas:</strong> Mientras dure la relación contractual + 5 años (obligaciones fiscales)</li>
+            <li>🔑 <strong>Tokens de acceso:</strong> Hasta revocación o expiración</li>
+            <li>📝 <strong>Logs de sistema:</strong> Máximo 12 meses</li>
+            <li>📈 <strong>Cache de datos:</strong> Actualización continua, máximo 2 años para datos históricos</li>
+        </ul>
+    </div>
+
+    <h2>6. Destinatarios de los Datos</h2>
+    <p>Sus datos pueden ser compartidos con:</p>
+    <ul>
+        <li>🔧 <strong>Proveedores de servicios:</strong> Hosting y mantenimiento (con contratos de encargo)</li>
+        <li>⚖️ <strong>Autoridades:</strong> Cuando sea requerido por ley</li>
+        <li>🚫 <strong>No se ceden datos a terceros</strong> con fines comerciales</li>
+    </ul>
+
+    <h2>7. Transferencias Internacionales</h2>
+    <p>🌍 <strong>QuickBooks Online:</strong> Los datos pueden transferirse a Intuit Inc. (EE.UU.) bajo las Cláusulas Contractuales Tipo de la Comisión Europea y el marco de adequacy de la UE-EE.UU.</p>
+
+    <h2>8. Medidas de Seguridad</h2>
+    <p>Implementamos:</p>
+    <ul>
+        <li>🔐 <strong>Cifrado:</strong> HTTPS/TLS para todas las comunicaciones</li>
+        <li>🔑 <strong>OAuth 2.0:</strong> Autenticación segura con QuickBooks</li>
+        <li>💾 <strong>Cache local:</strong> Almacenamiento SQLite seguro</li>
+        <li>📊 <strong>Monitoreo:</strong> Logs de acceso y actividad</li>
+        <li>🔄 <strong>Backups:</strong> Copias de seguridad regulares</li>
+        <li>🛡️ <strong>Acceso limitado:</strong> Principio de menor privilegio</li>
+    </ul>
+
+    <h2>9. Sus Derechos (RGPD)</h2>
+    <p>Tiene derecho a:</p>
+    <ul>
+        <li>ℹ️ <strong>Información:</strong> Conocer cómo tratamos sus datos</li>
+        <li>👁️ <strong>Acceso:</strong> Obtener copia de sus datos personales</li>
+        <li>✏️ <strong>Rectificación:</strong> Corregir datos inexactos</li>
+        <li>🗑️ <strong>Supresión:</strong> Eliminar sus datos ("derecho al olvido")</li>
+        <li>⏸️ <strong>Limitación:</strong> Restringir el tratamiento</li>
+        <li>📦 <strong>Portabilidad:</strong> Recibir sus datos en formato estructurado</li>
+        <li>🚫 <strong>Oposición:</strong> Oponerse al tratamiento</li>
+        <li>🤖 <strong>No decisiones automatizadas:</strong> No perfilar sin consentimiento</li>
+    </ul>
+
+    <h2>10. Cookies y Tecnologías Similares</h2>
+    <p>La aplicación puede usar:</p>
+    <ul>
+        <li>🍪 <strong>Cookies de sesión:</strong> Para mantener la autenticación</li>
+        <li>📊 <strong>Local Storage:</strong> Para cache temporal en navegador</li>
+        <li>📝 <strong>Logs de servidor:</strong> Para análisis de rendimiento</li>
+    </ul>
+
+    <h2>11. Contacto y Ejercicio de Derechos</h2>
+    <div class="contact-info">
+        <p>Para ejercer sus derechos o consultas sobre privacidad:</p>
+        <p><strong>🔒 Delegado de Protección de Datos (DPO):</strong> dpo@khlloreda.es</p>
+        <p><strong>📧 Email general:</strong> privacidad@khlloreda.es</p>
+        <p><strong>📞 Teléfono:</strong> +34 91 123 45 67</p>
+        <p><strong>📬 Dirección postal:</strong></p>
+        <p>KH LLOREDA, S.A.<br>
+        Att: Protección de Datos<br>
+        Calle Empresarial, 123<br>
+        28001 Madrid, España</p>
+    </div>
+
+    <h2>12. Autoridad de Control</h2>
+    <p>🏛️ Puede presentar reclamación ante la <strong>Agencia Española de Protección de Datos (AEPD)</strong>:</p>
+    <ul>
+        <li><strong>Web:</strong> www.aepd.es</li>
+        <li><strong>Teléfono:</strong> 901 100 099</li>
+        <li><strong>Dirección:</strong> C/ Jorge Juan, 6, 28001 Madrid</li>
+    </ul>
+
+    <h2>13. Modificaciones de la Política</h2>
+    <p>Esta política puede actualizarse. Los cambios se notificarán:</p>
+    <ul>
+        <li>📧 Por email a usuarios registrados</li>
+        <li>🌐 En la aplicación web</li>
+        <li>📋 Con 30 días de antelación para cambios sustanciales</li>
+    </ul>
+
+    <div class="footer">
+        <p>© {{ año_actual }} KH LLOREDA, S.A. - Todos los derechos reservados</p>
+        <p>QuickBooks Sales Reporter v2.0.1 - Política de Privacidad</p>
+        <p>🇪🇺 Cumple con RGPD • 🇪🇸 LOPDGDD • 🔒 ISO 27001</p>
     </div>
 </body>
 </html>

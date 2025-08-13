@@ -5,8 +5,10 @@ Este módulo proporciona funciones para conectarse a QuickBooks Online y obtener
 
 import os
 import requests
+import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+from urllib.parse import urlencode
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
@@ -20,41 +22,117 @@ class QuickBooksClient:
         self.client_secret = os.getenv('QB_CLIENT_SECRET')
         self.redirect_uri = os.getenv('QB_REDIRECT_URI')
         self.base_url = os.getenv('QB_SANDBOX_BASE_URL', 'https://sandbox-quickbooks.api.intuit.com')
+        self.discovery_document_url = os.getenv('QB_DISCOVERY_URL', 'https://appcenter.intuit.com/api/v1/OpenID_OIDC_Service')
         self.access_token = None
         self.refresh_token = None
         self.company_id = None
-        
-    def get_auth_url(self) -> str:
-        """
-        Genera la URL de autorización para OAuth 2.0
-        Returns:
-            str: URL de autorización de QuickBooks
-        """
-        scope = 'com.intuit.quickbooks.accounting'
-        state = 'security_token'  # En producción, usar un token seguro aleatorio
-        
-        auth_url = (
-            f"https://appcenter.intuit.com/connect/oauth2?"
-            f"client_id={self.client_id}&"
-            f"scope={scope}&"
-            f"redirect_uri={self.redirect_uri}&"
-            f"response_type=code&"
-            f"access_type=offline&"
-            f"state={state}"
-        )
-        
-        return auth_url
+        self._oauth_endpoints = None
+        self._state_tokens = {}  # Para CSRF protection
     
-    def exchange_code_for_tokens(self, authorization_code: str, realm_id: str) -> bool:
+    def _get_oauth_endpoints(self) -> Dict[str, str]:
+        """
+        Obtiene los endpoints OAuth desde el discovery document de QuickBooks
+        Returns:
+            Dict con authorization_endpoint y token_endpoint
+        """
+        if self._oauth_endpoints is not None:
+            return self._oauth_endpoints
+            
+        try:
+            response = requests.get(self.discovery_document_url, timeout=10)
+            if response.status_code == 200:
+                discovery_data = response.json()
+                self._oauth_endpoints = {
+                    'authorization_endpoint': discovery_data.get('authorization_endpoint', 'https://appcenter.intuit.com/connect/oauth2'),
+                    'token_endpoint': discovery_data.get('token_endpoint', 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer')
+                }
+                print(f"✅ Discovery document cargado desde {self.discovery_document_url}")
+                return self._oauth_endpoints
+            else:
+                print(f"⚠️ Error obteniendo discovery document: {response.status_code}")
+        except Exception as e:
+            print(f"⚠️ Error conectando con discovery document: {e}")
+        
+        # Fallback a endpoints por defecto si falla
+        self._oauth_endpoints = {
+            'authorization_endpoint': 'https://appcenter.intuit.com/connect/oauth2',
+            'token_endpoint': 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
+        }
+        print("🔄 Usando endpoints OAuth por defecto")
+        return self._oauth_endpoints
+        
+    def get_auth_url(self) -> tuple[str, str]:
+        """
+        Genera la URL de autorización para OAuth 2.0 con CSRF protection
+        Returns:
+            tuple: (URL de autorización, state token para validación)
+        """
+        # Generar state token para CSRF protection
+        state_token = secrets.token_urlsafe(32)
+        self._state_tokens[state_token] = datetime.now()
+        
+        # Obtener endpoints desde discovery document
+        endpoints = self._get_oauth_endpoints()
+        
+        scope = 'com.intuit.quickbooks.accounting'
+        
+        params = {
+            'client_id': self.client_id,
+            'scope': scope,
+            'redirect_uri': self.redirect_uri,
+            'response_type': 'code',
+            'access_type': 'offline',
+            'state': state_token  # CSRF protection
+        }
+        
+        query_string = urlencode(params)
+        auth_url = f"{endpoints['authorization_endpoint']}?{query_string}"
+        
+        print(f"🔐 State token generado para CSRF protection: {state_token[:8]}...")
+        return auth_url, state_token
+    
+    def validate_state_token(self, state_token: str) -> bool:
+        """
+        Valida el state token para CSRF protection
+        Args:
+            state_token: Token a validar
+        Returns:
+            bool: True si el token es válido
+        """
+        if not state_token or state_token not in self._state_tokens:
+            print("❌ CSRF: State token inválido o no encontrado")
+            return False
+        
+        # Verificar que no sea muy antiguo (5 minutos máximo)
+        token_time = self._state_tokens[state_token]
+        if datetime.now() - token_time > timedelta(minutes=5):
+            print("❌ CSRF: State token expirado")
+            del self._state_tokens[state_token]
+            return False
+        
+        # Token válido, eliminarlo para un solo uso
+        del self._state_tokens[state_token]
+        print("✅ CSRF: State token validado correctamente")
+        return True
+    
+    def exchange_code_for_tokens(self, authorization_code: str, realm_id: str, state_token: str = None) -> bool:
         """
         Intercambia el código de autorización por tokens de acceso
         Args:
             authorization_code: Código de autorización recibido del callback
             realm_id: ID de la compañía (company ID)
+            state_token: Token CSRF para validación (opcional para compatibilidad)
         Returns:
             bool: True si el intercambio fue exitoso
         """
-        token_url = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
+        # Validar CSRF si se proporciona state token
+        if state_token and not self.validate_state_token(state_token):
+            print("❌ Falla de validación CSRF - intercambio de tokens cancelado")
+            return False
+        
+        # Obtener endpoint de token desde discovery document
+        endpoints = self._get_oauth_endpoints()
+        token_url = endpoints['token_endpoint']
         
         headers = {
             'Accept': 'application/json',
@@ -96,9 +174,12 @@ class QuickBooksClient:
             bool: True si el refresh fue exitoso
         """
         if not self.refresh_token:
+            print("❌ No hay refresh token disponible")
             return False
             
-        token_url = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
+        # Obtener endpoint de token desde discovery document
+        endpoints = self._get_oauth_endpoints()
+        token_url = endpoints['token_endpoint']
         
         headers = {
             'Accept': 'application/json',
@@ -122,8 +203,30 @@ class QuickBooksClient:
                 token_data = response.json()
                 self.access_token = token_data.get('access_token')
                 self.refresh_token = token_data.get('refresh_token')
+                print("✅ Tokens refrescados exitosamente")
                 return True
             else:
+                # Manejo específico de errores OAuth
+                try:
+                    error_data = response.json()
+                    error_code = error_data.get('error', 'unknown_error')
+                    error_description = error_data.get('error_description', 'No description available')
+                    
+                    if error_code == 'invalid_grant':
+                        print("❌ OAuth Error: invalid_grant - Refresh token expirado o inválido")
+                        print("   Se requiere nueva autorización del usuario")
+                        # Limpiar tokens inválidos
+                        self.access_token = None
+                        self.refresh_token = None
+                        self.company_id = None
+                    elif error_code == 'invalid_client':
+                        print("❌ OAuth Error: invalid_client - Credenciales de cliente inválidas")
+                    else:
+                        print(f"❌ OAuth Error: {error_code} - {error_description}")
+                        
+                except:
+                    print(f"❌ Error refrescando token: HTTP {response.status_code} - {response.text}")
+                
                 return False
                 
         except Exception as e:
