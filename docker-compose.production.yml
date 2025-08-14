@@ -1,22 +1,36 @@
 services:
   # QuickBooks Sales Reporter para Producción
   quickbooks-reporter:
-    image: registry.khlloreda.es/quickbooks-reporter:v2.0.2
+    image: registry.khlloreda.es/quickbooks-reporter:v2.0.5-fixed
     container_name: quickbooks-reporter-prod
     restart: unless-stopped
     ports:
       - "5000:5000"  # Flask - Aplicación principal
       - "8080:8080"  # FastAPI - OpenWebUI Interface
     environment:
+      # Configuración de aplicación
       - FLASK_ENV=production
-      - SALES_UPDATE_INTERVAL=1  # Horas entre actualizaciones automáticas
+      - SALES_UPDATE_INTERVAL=1                # Horas entre actualizaciones automáticas
+      - SECRET_KEY=CAMBIAR_EN_PRODUCCION       # Clave secreta Flask
+      - LOG_LEVEL=INFO
+
+      # Credenciales QuickBooks (introducir manualmente)
+      - QB_CLIENT_ID=CAMBIAR_EN_PRODUCCION
+      - QB_CLIENT_SECRET=CAMBIAR_EN_PRODUCCION
+      - QB_REDIRECT_URI=https://tu-dominio.com/callback
+
+      # Endpoints QuickBooks
+      # En producción usar API pública (no sandbox)
+      - QB_SANDBOX_BASE_URL=https://quickbooks.api.intuit.com
+      - QB_DISCOVERY_URL=https://appcenter.intuit.com/connect/oauth2/.well-known/openid_configuration
+
+      # Zona horaria del contenedor (opcional)
+      - TZ=Europe/Madrid
     volumes:
-      - ./data:/app/data      # Persistir base de datos SQLite
-      - ./logs:/app/logs      # Persistir logs
-      - ./.env.production:/app/.env.production:ro  # Configuración de producción
-      - ./.env:/app/.env:ro   # Configuración de desarrollo como fallback
+      - quickbooks-data:/app/data   # Persistir base de datos SQLite
+      - quickbooks-logs:/app/logs   # Persistir logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/ || curl -f http://localhost:8080/"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5000/health || curl -fsS http://localhost:8080/openapi.json"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -25,7 +39,7 @@ services:
       - quickbooks-network
     labels:
       - "com.khlloreda.service=quickbooks-reporter"
-      - "com.khlloreda.version=v2.0.2"
+      - "com.khlloreda.version=v2.0.5-fixed"
       - "com.khlloreda.environment=production"
 
 # Red personalizada

@@ -25,47 +25,89 @@ class TestQuickBooksClient(unittest.TestCase):
         self.assertIsNotNone(self.client.redirect_uri)
         self.assertIsNotNone(self.client.base_url)
     
-    def test_get_auth_url(self):
+    @patch('quickbooks_client.requests.get')
+    def test_get_auth_url(self, mock_get):
         """Test de generación de URL de autorización"""
-        auth_url = self.client.get_auth_url()
-        
-        self.assertIn("appcenter.intuit.com", auth_url)
-        self.assertIn("client_id=test_client_id", auth_url)
-        self.assertIn("scope=com.intuit.quickbooks.accounting", auth_url)
-        self.assertIn("redirect_uri=http://localhost:5000/callback", auth_url)
-    
-    @patch('quickbooks_client.requests.post')
-    def test_exchange_code_for_tokens_success(self, mock_post):
-        """Test de intercambio exitoso de código por tokens"""
-        # Mock de respuesta exitosa
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            'access_token': 'test_access_token',
-            'refresh_token': 'test_refresh_token'
+        # Mock discovery document
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            'authorization_endpoint': 'https://appcenter.intuit.com/connect/oauth2',
+            'token_endpoint': 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
         }
-        mock_post.return_value = mock_response
+        mock_get.return_value = mock_resp
+
+        auth_url, state = self.client.get_auth_url()
         
-        result = self.client.exchange_code_for_tokens('test_code', 'test_realm_id')
-        
-        self.assertTrue(result)
-        self.assertEqual(self.client.access_token, 'test_access_token')
-        self.assertEqual(self.client.refresh_token, 'test_refresh_token')
-        self.assertEqual(self.client.company_id, 'test_realm_id')
+        from urllib.parse import urlparse, parse_qs
+        self.assertIsInstance(state, str)
+        self.assertGreater(len(state), 0)
+        self.assertIn("appcenter.intuit.com", auth_url)
+        # Validar parámetros por parseo de querystring (maneja encoding)
+        parsed = urlparse(auth_url)
+        qs = parse_qs(parsed.query)
+        self.assertEqual(qs.get('client_id', [None])[0], 'test_client_id')
+        self.assertEqual(qs.get('scope', [None])[0], 'com.intuit.quickbooks.accounting')
+        self.assertEqual(qs.get('redirect_uri', [None])[0], 'http://localhost:5000/callback')
     
-    @patch('quickbooks_client.requests.post')
-    def test_exchange_code_for_tokens_failure(self, mock_post):
+    def test_exchange_code_for_tokens_success(self):
+        """Test de intercambio exitoso de código por tokens"""
+        with patch('quickbooks_client.requests.get') as mock_get, \
+             patch('quickbooks_client.requests.post') as mock_post:
+            # Mock discovery document
+            mock_get_resp = Mock()
+            mock_get_resp.status_code = 200
+            mock_get_resp.json.return_value = {
+                'authorization_endpoint': 'https://appcenter.intuit.com/connect/oauth2',
+                'token_endpoint': 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
+            }
+            mock_get.return_value = mock_get_resp
+
+            # Mock de respuesta exitosa
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.headers = {'intuit_tid': 'TID123'}
+            mock_response.json.return_value = {
+                'access_token': 'test_access_token',
+                'refresh_token': 'test_refresh_token'
+            }
+            mock_post.return_value = mock_response
+            
+            result = self.client.exchange_code_for_tokens('test_code', 'test_realm_id', state_token=None)
+            
+            self.assertTrue(result)
+            self.assertEqual(self.client.access_token, 'test_access_token')
+            self.assertEqual(self.client.refresh_token, 'test_refresh_token')
+            self.assertEqual(self.client.company_id, 'test_realm_id')
+    
+    def test_exchange_code_for_tokens_failure(self):
         """Test de intercambio fallido de código por tokens"""
-        # Mock de respuesta de error
-        mock_response = Mock()
-        mock_response.status_code = 400
-        mock_response.text = 'Bad Request'
-        mock_post.return_value = mock_response
-        
-        result = self.client.exchange_code_for_tokens('invalid_code', 'test_realm_id')
-        
-        self.assertFalse(result)
-        self.assertIsNone(self.client.access_token)
+        with patch('quickbooks_client.requests.get') as mock_get, \
+             patch('quickbooks_client.requests.post') as mock_post:
+            # Mock discovery document
+            mock_get_resp = Mock()
+            mock_get_resp.status_code = 200
+            mock_get_resp.json.return_value = {
+                'authorization_endpoint': 'https://appcenter.intuit.com/connect/oauth2',
+                'token_endpoint': 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
+            }
+            mock_get.return_value = mock_get_resp
+
+            # Mock de respuesta de error
+            mock_response = Mock()
+            mock_response.status_code = 400
+            mock_response.headers = {'intuit_tid': 'TID_ERR'}
+            mock_response.text = 'Bad Request'
+            mock_response.json.return_value = {
+                'error': 'invalid_grant',
+                'error_description': 'Invalid authorization code'
+            }
+            mock_post.return_value = mock_response
+            
+            result = self.client.exchange_code_for_tokens('invalid_code', 'test_realm_id', state_token=None)
+            
+            self.assertFalse(result)
+            self.assertIsNone(self.client.access_token)
     
     @patch('quickbooks_client.requests.get')
     def test_make_api_request_success(self, mock_get):
@@ -77,6 +119,7 @@ class TestQuickBooksClient(unittest.TestCase):
         # Mock de respuesta exitosa
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.headers = {'intuit_tid': 'TID_Q'}
         mock_response.json.return_value = {
             'QueryResponse': {
                 'SalesReceipt': [{'Id': '1', 'TotalAmt': '100.00'}]

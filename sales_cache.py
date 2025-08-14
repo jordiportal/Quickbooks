@@ -45,6 +45,30 @@ class SalesCache(Base):
         UniqueConstraint('company_id', 'period', name='_company_period_uc'),
     )
 
+    def to_dict(self):
+        """Convertir a diccionario para JSON (resumen mensual)"""
+        return {
+            'company_id': self.company_id,
+            'período': self.period,
+            'total_ventas': float(self.total_sales) if self.total_sales is not None else 0.0,
+            'total_unidades': self.total_units or 0,
+            'clientes_únicos': self.unique_customers or 0,
+            'productos_únicos': self.unique_products or 0,
+            'recibos_de_venta': {
+                'cantidad': self.receipts_count or 0,
+                'total': float(self.receipts_total) if self.receipts_total is not None else 0.0
+            },
+            'facturas': {
+                'cantidad': self.invoices_count or 0,
+                'total': float(self.invoices_total) if self.invoices_total is not None else 0.0
+            },
+            'fecha_inicio': self.fecha_inicio,
+            'fecha_fin': self.fecha_fin,
+            'last_updated': self.last_updated.isoformat() if self.last_updated else None,
+            'update_success': self.update_success == 'true',
+            'error_message': self.error_message
+        }
+
 class ProductSales(Base):
     """Modelo para ventas detalladas por producto"""
     __tablename__ = 'product_sales'
@@ -84,29 +108,7 @@ class CustomerSales(Base):
         UniqueConstraint('company_id', 'period', 'customer_id', name='_company_period_customer_uc'),
     )
     
-    def to_dict(self):
-        """Convertir a diccionario para JSON"""
-        return {
-            'company_id': self.company_id,
-            'período': self.period,
-            'total_ventas': float(self.total_sales),
-            'total_unidades': self.total_units or 0,
-            'clientes_únicos': self.unique_customers or 0,
-            'productos_únicos': self.unique_products or 0,
-            'recibos_de_venta': {
-                'cantidad': self.receipts_count,
-                'total': float(self.receipts_total)
-            },
-            'facturas': {
-                'cantidad': self.invoices_count,
-                'total': float(self.invoices_total)
-            },
-            'fecha_inicio': self.fecha_inicio,
-            'fecha_fin': self.fecha_fin,
-            'last_updated': self.last_updated.isoformat() if self.last_updated else None,
-            'update_success': self.update_success == 'true',
-            'error_message': self.error_message
-        }
+    # Nota: Representaciones específicas se construyen en servicios; no exponer to_dict aquí
 
 class SalesCacheService:
     """Servicio para manejar el cache de ventas"""
