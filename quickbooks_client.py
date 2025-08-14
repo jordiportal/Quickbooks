@@ -51,19 +51,19 @@ class QuickBooksClient:
                     'authorization_endpoint': discovery_data.get('authorization_endpoint', 'https://appcenter.intuit.com/connect/oauth2'),
                     'token_endpoint': discovery_data.get('token_endpoint', 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer')
                 }
-                print(f"✅ Discovery document cargado desde {self.discovery_document_url}")
+                qb_logger.logger.info(f"Discovery document cargado desde {self.discovery_document_url}")
                 return self._oauth_endpoints
             else:
-                print(f"⚠️ Error obteniendo discovery document: {response.status_code}")
+                qb_logger.logger.warning(f"Error obteniendo discovery document: {response.status_code}")
         except Exception as e:
-            print(f"⚠️ Error conectando con discovery document: {e}")
+            qb_logger.logger.warning(f"Error conectando con discovery document: {e}")
         
         # Fallback a endpoints por defecto si falla
         self._oauth_endpoints = {
             'authorization_endpoint': 'https://appcenter.intuit.com/connect/oauth2',
             'token_endpoint': 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
         }
-        print("🔄 Usando endpoints OAuth por defecto")
+        qb_logger.logger.info("Usando endpoints OAuth por defecto")
         return self._oauth_endpoints
         
     def get_auth_url(self) -> tuple[str, str]:
@@ -93,7 +93,7 @@ class QuickBooksClient:
         query_string = urlencode(params)
         auth_url = f"{endpoints['authorization_endpoint']}?{query_string}"
         
-        print(f"🔐 State token generado para CSRF protection: {state_token[:8]}...")
+        qb_logger.logger.debug(f"State token generado para CSRF protection: {state_token[:8]}...")
         return auth_url, state_token
     
     def validate_state_token(self, state_token: str) -> bool:
@@ -105,19 +105,19 @@ class QuickBooksClient:
             bool: True si el token es válido
         """
         if not state_token or state_token not in self._state_tokens:
-            print("❌ CSRF: State token inválido o no encontrado")
+            qb_logger.logger.error("CSRF: State token invalido o no encontrado")
             return False
         
         # Verificar que no sea muy antiguo (5 minutos máximo)
         token_time = self._state_tokens[state_token]
         if datetime.now() - token_time > timedelta(minutes=5):
-            print("❌ CSRF: State token expirado")
+            qb_logger.logger.error("CSRF: State token expirado")
             del self._state_tokens[state_token]
             return False
         
         # Token válido, eliminarlo para un solo uso
         del self._state_tokens[state_token]
-        print("✅ CSRF: State token validado correctamente")
+        qb_logger.logger.info("CSRF: State token validado correctamente")
         return True
     
     def exchange_code_for_tokens(self, authorization_code: str, realm_id: str, state_token: str = None) -> bool:
@@ -132,7 +132,7 @@ class QuickBooksClient:
         """
         # Validar CSRF si se proporciona state token
         if state_token and not self.validate_state_token(state_token):
-            print("❌ Falla de validación CSRF - intercambio de tokens cancelado")
+            qb_logger.logger.error("Falla de validacion CSRF - intercambio de tokens cancelado")
             return False
         
         # Obtener endpoint de token desde discovery document
@@ -212,7 +212,7 @@ class QuickBooksClient:
                     http_code=qb_error.http_code
                 )
                 
-                print(f"Error obteniendo tokens: {response.status_code} - {response.text}")
+                qb_logger.logger.error(f"Error obteniendo tokens: {response.status_code}")
                 return False
                 
         except Exception as e:
@@ -223,7 +223,7 @@ class QuickBooksClient:
                 context={'action': 'exchange_code_for_tokens', 'realm_id': realm_id, 'state_token': state_token},
                 exception=e
             )
-            print(f"Error en intercambio de tokens: {str(e)}")
+            qb_logger.logger.error(f"Error en intercambio de tokens: {str(e)}")
             return False
     
     def refresh_access_token(self) -> bool:
@@ -233,7 +233,7 @@ class QuickBooksClient:
             bool: True si el refresh fue exitoso
         """
         if not self.refresh_token:
-            print("❌ No hay refresh token disponible")
+            qb_logger.logger.error("No hay refresh token disponible")
             return False
             
         # Obtener endpoint de token desde discovery document
@@ -287,7 +287,7 @@ class QuickBooksClient:
                     intuit_tid=intuit_tid
                 )
                 
-                print("✅ Tokens refrescados exitosamente")
+                qb_logger.logger.info("Tokens refrescados exitosamente")
                 return True
             else:
                 # Manejo específico de errores OAuth con logging
@@ -313,15 +313,14 @@ class QuickBooksClient:
                 
                 # Limpiar tokens si es invalid_grant
                 if qb_error.qb_error_code == 'invalid_grant':
-                    print("❌ OAuth Error: invalid_grant - Refresh token expirado o inválido")
-                    print("   Se requiere nueva autorización del usuario")
+                    qb_logger.logger.error("OAuth Error: invalid_grant - Refresh token expirado o invalido. Se requiere nueva autorizacion del usuario")
                     self.access_token = None
                     self.refresh_token = None
                     self.company_id = None
                 elif qb_error.qb_error_code == 'invalid_client':
-                    print("❌ OAuth Error: invalid_client - Credenciales de cliente inválidas")
+                    qb_logger.logger.error("OAuth Error: invalid_client - Credenciales de cliente invalidas")
                 else:
-                    print(f"❌ OAuth Error: {qb_error.qb_error_code} - {qb_error.message}")
+                    qb_logger.logger.error(f"OAuth Error: {qb_error.qb_error_code} - {qb_error.message}")
                 
                 return False
                 
@@ -333,7 +332,7 @@ class QuickBooksClient:
                 context={'action': 'refresh_token', 'token_url': token_url},
                 exception=e
             )
-            print(f"Error refrescando token: {str(e)}")
+            qb_logger.logger.error(f"Error refrescando token: {str(e)}")
             return False
     
     def make_api_request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
@@ -437,7 +436,7 @@ class QuickBooksClient:
                 http_code=qb_error.http_code
             )
             
-            print(f"Error en API request: {response.status_code} - {response.text}")
+            qb_logger.logger.error(f"Error en API request: {response.status_code}")
             return None
             
         except Exception as e:
@@ -448,7 +447,7 @@ class QuickBooksClient:
                 context={'endpoint': endpoint, 'params': params, 'url': url},
                 exception=e
             )
-            print(f"Error realizando petición: {str(e)}")
+            qb_logger.logger.error(f"Error realizando peticion: {str(e)}")
             return None
     
     def _count_records(self, data: Dict) -> int:
@@ -610,7 +609,7 @@ class QuickBooksClient:
         if not year:
             year = datetime.now().year
         
-        print(f"📊 Obteniendo datos anuales para {year}...")
+        qb_logger.logger.info(f"Obteniendo datos anuales para {year}...")
         
         annual_data = {
             'año': year,
@@ -637,7 +636,7 @@ class QuickBooksClient:
                 break
                 
             try:
-                print(f"  📅 Procesando {month:02d}/{year}...")
+                qb_logger.logger.debug(f"Procesando mes {month:02d}/{year}...")
                 monthly_data = self.get_monthly_sales_summary(year, month)
                 
                 month_name = self._get_month_name(month)
@@ -674,7 +673,7 @@ class QuickBooksClient:
                     }
                     
             except Exception as e:
-                print(f"  ❌ Error en mes {month}: {e}")
+                qb_logger.logger.error(f"Error en mes {month}: {e}")
                 # Continuar con otros meses aunque uno falle
                 continue
         
@@ -688,7 +687,7 @@ class QuickBooksClient:
             annual_data['total_anual'] / meses_con_datos if meses_con_datos > 0 else 0
         )
         
-        print(f"✅ Datos anuales obtenidos: ${annual_data['total_anual']:.2f}")
+        qb_logger.logger.info(f"Datos anuales obtenidos: ${annual_data['total_anual']:.2f}")
         return annual_data
 
     def get_quarterly_sales_summary(self, year: int = None) -> Dict:
@@ -731,7 +730,7 @@ class QuickBooksClient:
                     quarter_receipts += monthly_data['recibos_de_venta']['total']
                     quarter_invoices += monthly_data['facturas']['total']
                 except Exception as e:
-                    print(f"Error en mes {month}: {e}")
+                    qb_logger.logger.error(f"Error en mes {month}: {e}")
                     continue
             
             quarterly_data['trimestres'][quarter_key] = {
@@ -786,7 +785,7 @@ class QuickBooksClient:
             return comparison
             
         except Exception as e:
-            print(f"Error comparando períodos: {e}")
+            qb_logger.logger.error(f"Error comparando periodos: {e}")
             raise
 
     def _get_month_name(self, month_number: int) -> str:
@@ -809,7 +808,7 @@ class QuickBooksClient:
         if not year:
             year = datetime.now().year
         
-        print(f"🔍 Generando informe detallado anual para {year}...")
+        qb_logger.logger.info(f"Generando informe detallado anual para {year}...")
         
         # Obtener todos los datos del año
         annual_summary = {
@@ -827,7 +826,7 @@ class QuickBooksClient:
         }
         
         for month in range(1, 13):
-            print(f"📊 Procesando {month:02d}/{year}...")
+            qb_logger.logger.debug(f"Procesando {month:02d}/{year}...")
             
             # Obtener datos mensuales detallados
             monthly_data = self.get_detailed_monthly_data(year, month)

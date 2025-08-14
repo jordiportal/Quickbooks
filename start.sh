@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/bin/sh
 
-echo "🚀 Iniciando QuickBooks Sales Reporter v2.0.0"
+echo "🚀 Iniciando QuickBooks Sales Reporter v2.0.4-logging"
 echo "📡 Configuración:"
 echo "   • Flask Server: http://0.0.0.0:5000"
 echo "   • OpenAPI Server: http://0.0.0.0:8080"

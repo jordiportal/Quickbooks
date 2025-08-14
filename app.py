@@ -26,6 +26,11 @@ sales_scheduler.start()
 # Registrar shutdown del scheduler
 atexit.register(lambda: sales_scheduler.stop())
 
+# Endpoint de salud para comprobaciones externas
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"}), 200
+
 # Template HTML para la página principal
 MAIN_TEMPLATE = """
 <!DOCTYPE html>
@@ -1349,7 +1354,7 @@ def annual_sales(year=None):
     
     try:
         # Intentar obtener datos del cache anual primero
-        annual_data = cache_service.get_annual_cached_data(company_id, year)
+        annual_data = cache_service.get_annual_cached_data(year, company_id)
         
         if not annual_data:
             # Si no hay cache, obtener datos frescos de QuickBooks
@@ -1378,7 +1383,7 @@ def annual_sales(year=None):
         
     except Exception as e:
         # Si falla todo, intentar mostrar último cache disponible
-        annual_data = cache_service.get_annual_cached_data(company_id, year)
+        annual_data = cache_service.get_annual_cached_data(year, company_id)
         if annual_data:
             annual_data['from_cache'] = True
             annual_data['cache_warning'] = True
@@ -1594,10 +1599,10 @@ def api_public_sales_current():
         current_year = now.year
         
         # Buscar datos en cache
-        session = cache_service.Session()
+        db_session = cache_service.Session()
         period = f"{current_month:02d}/{current_year}"
         
-        cached_data = session.query(SalesCache).filter(
+        cached_data = db_session.query(SalesCache).filter(
             SalesCache.period == period
         ).first()
         
@@ -1634,10 +1639,10 @@ def api_public_sales_specific(year, month):
             return jsonify({'error': 'Año inválido (2020-2030)'}), 400
             
         # Buscar datos en cache
-        session = cache_service.Session()
+        db_session = cache_service.Session()
         period = f"{month:02d}/{year}"
         
-        cached_data = session.query(SalesCache).filter(
+        cached_data = db_session.query(SalesCache).filter(
             SalesCache.period == period
         ).first()
         
@@ -1700,13 +1705,13 @@ def api_public_status():
     """API endpoint público para estado del sistema (solo cache, sin auth)"""
     try:
         # Obtener estadísticas del cache
-        session = cache_service.Session()
-        total_records = session.query(SalesCache).count()
+        db_session = cache_service.Session()
+        total_records = db_session.query(SalesCache).count()
         
         if total_records > 0:
-            latest_update = session.query(SalesCache.last_updated).order_by(SalesCache.last_updated.desc()).first()
-            oldest_record = session.query(SalesCache.period).order_by(SalesCache.period).first()
-            newest_record = session.query(SalesCache.period).order_by(SalesCache.period.desc()).first()
+            latest_update = db_session.query(SalesCache.last_updated).order_by(SalesCache.last_updated.desc()).first()
+            oldest_record = db_session.query(SalesCache.period).order_by(SalesCache.period).first()
+            newest_record = db_session.query(SalesCache.period).order_by(SalesCache.period.desc()).first()
             
             return jsonify({
                 'sistema': 'QuickBooks Sales Reporter',

@@ -38,7 +38,7 @@ COPY templates/ ./templates/
 RUN mkdir -p /app/data && mkdir -p /app/logs
 
 # Hacer ejecutable el script de inicio
-RUN chmod +x /app/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
 # Crear usuario no privilegiado y dar permisos
 RUN useradd -m -u 1000 appuser && \
